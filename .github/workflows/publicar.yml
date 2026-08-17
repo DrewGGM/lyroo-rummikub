@@ -92,6 +92,16 @@ jobs:
           sleep 10
           curl --fail --silent --show-error --output /dev/null \
             https://rummikub.andrewgarcia.dev/
-          curl --fail --silent --show-error \
+
+          # La API tiene que contestar como la aplicación, no como una página de
+          # error de Cloudflare. Un 503 por cuota agotada es una respuesta
+          # legítima —el día tiene un tope de partidas— y no significa que el
+          # despliegue esté roto, así que no debe tumbar la publicación.
+          codigo=$(curl --silent --output /tmp/respuesta.json --write-out '%{http_code}' \
             -X POST -H 'Content-Type: application/json' -d '{}' \
-            https://rummikub.andrewgarcia.dev/api/rooms
+            https://rummikub.andrewgarcia.dev/api/rooms)
+          echo "respuesta $codigo: $(cat /tmp/respuesta.json)"
+          case "$codigo" in
+            201|429|503) echo "la aplicación responde" ;;
+            *) echo "respuesta inesperada"; exit 1 ;;
+          esac
