@@ -28,9 +28,6 @@ export const JOKER_PENALTY = 30;
 /** Longitud mínima de un grupo o una escalera. */
 export const MIN_SET_SIZE = 3;
 
-/** Puntuación mínima de la jugada inicial de cada jugador. */
-export const INITIAL_MELD_POINTS = 30;
-
 export type TileId = string;
 
 export type NumberTile = {

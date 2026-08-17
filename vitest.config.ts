@@ -6,7 +6,9 @@ export default defineConfig({
       {
         test: {
           name: "engine",
-          include: ["src/engine/**/*.test.ts"],
+          // El motor y la lógica de colocación del cliente: todo código puro,
+          // sin navegador ni red.
+          include: ["src/engine/**/*.test.ts", "src/client/**/*.test.ts"],
           environment: "node",
         },
       },

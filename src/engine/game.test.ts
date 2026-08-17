@@ -140,7 +140,7 @@ describe("arranque", () => {
     const state = playing(["Ana", "Beto", "Cris"]);
     expect(state.status).toBe("playing");
     expect(state.players.every((p) => p.rack.length === HAND_SIZE)).toBe(true);
-    expect(state.turnEndsAt).toBe(NOW + state.turnSeconds * 1000);
+    expect(state.turnEndsAt).toBe(NOW + state.rules.turnSeconds! * 1000);
   });
 
   it("no reparte dos veces la misma ficha", () => {
@@ -167,7 +167,7 @@ describe("turnos", () => {
     expect(result.state.turnIndex).toBe(1);
     expect(result.state.pool).toHaveLength(poolBefore - 1);
     expect(result.state.players[0]!.rack).toHaveLength(HAND_SIZE + 1);
-    expect(result.state.turnEndsAt).toBe(NOW + 5000 + state.turnSeconds * 1000);
+    expect(result.state.turnEndsAt).toBe(NOW + 5000 + state.rules.turnSeconds! * 1000);
   });
 
   it("da la vuelta a la mesa", () => {

@@ -1,8 +1,11 @@
-import type { MouseEvent, PointerEvent } from "react";
+import { useMemo, type MouseEvent, type PointerEvent } from "react";
+import { Plus } from "lucide-react";
 
 import { readSet } from "../../engine/sets";
 import type { Board, TileId } from "../../engine/types";
 import type { Slot } from "../play/arrange";
+import { fitBoardTile } from "../play/fit";
+import { tileSizeStyle, useMeasuredBox } from "../play/useAutoFit";
 import type { Grab } from "../play/useGrab";
 import { Tile } from "./Tile";
 
@@ -15,6 +18,8 @@ type FeltProps = {
   /** Combinaciones que el servidor acaba de rechazar. */
   rejected: readonly number[];
   canArrange: boolean;
+  /** Quién está moviendo fichas ahora mismo, si no eres tú. */
+  movedBy: string | null;
 };
 
 export function Felt({
@@ -24,48 +29,77 @@ export function Felt({
   broken,
   rejected,
   canArrange,
+  movedBy,
 }: FeltProps) {
+  const [ref, box] = useMeasuredBox<HTMLDivElement>();
+
+  // Las fichas encogen conforme se llena la mesa para que nunca haga falta
+  // desplazar el tapete: en horizontal el alto es lo único que escasea.
+  const tile = useMemo(
+    () => fitBoardTile(board.map((set) => set.length), box),
+    [board, box],
+  );
+
   const empty = board.length === 0;
 
   return (
-    <div className="felt">
-      {empty ? (
-        <p className="felt__hint">
-          {canArrange
-            ? "Arrastra fichas al hueco para montar tu primera jugada. Tiene que sumar 30."
-            : "La mesa está vacía. La primera jugada de cada uno suma 30 puntos como mínimo."}
+    <div
+      className="felt"
+      ref={ref}
+      style={tileSizeStyle(tile)}
+      // Todo el tapete acepta fichas: soltar en el hueco vacío empieza una
+      // combinación nueva, que es lo que uno espera al ver tanto sitio libre.
+      data-drop={canArrange ? "new" : undefined}
+      onClick={() => {
+        if (canArrange && grab.holding) grab.dropOn({ kind: "new" });
+      }}
+    >
+      {movedBy ? (
+        <p className="felt__live">
+          <span className="felt__live-dot" />
+          {movedBy} está moviendo fichas
         </p>
       ) : null}
 
-      {empty && !canArrange ? null : (
-        <div className="felt__sets">
-          {board.map((set, setIndex) => (
-            <Tray
-              key={keyOf(set, setIndex)}
-              set={set}
-              setIndex={setIndex}
-              grab={grab}
-              played={played}
-              broken={broken.includes(setIndex)}
-              rejected={rejected.includes(setIndex)}
-              canArrange={canArrange}
-            />
-          ))}
+      {empty ? (
+        <p className="felt__hint">
+          {canArrange
+            ? "Suelta fichas aquí para montar tu jugada. Mantén pulsada una ficha del atril para coger la escalera entera."
+            : "La mesa está vacía."}
+        </p>
+      ) : null}
 
-          {canArrange ? (
-            <button
-              type="button"
-              className={`tray tray--new${
-                grab.target?.kind === "new" ? " tray--target" : ""
-              }`}
-              data-drop="new"
-              onClick={() => grab.dropOn({ kind: "new" })}
-            >
-              Nueva
-            </button>
-          ) : null}
-        </div>
-      )}
+      <div className="felt__sets">
+        {board.map((set, setIndex) => (
+          <Tray
+            key={keyOf(set, setIndex)}
+            set={set}
+            setIndex={setIndex}
+            grab={grab}
+            played={played}
+            broken={broken.includes(setIndex)}
+            rejected={rejected.includes(setIndex)}
+            canArrange={canArrange}
+          />
+        ))}
+
+        {canArrange ? (
+          <button
+            type="button"
+            className={`tray tray--new${
+              grab.target?.kind === "new" ? " tray--target" : ""
+            }`}
+            data-drop="new"
+            aria-label="Empezar una combinación nueva"
+            onClick={(event) => {
+              event.stopPropagation();
+              grab.dropOn({ kind: "new" });
+            }}
+          >
+            <Plus size={16} aria-hidden />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -103,13 +137,16 @@ function Tray({
       className={classes.join(" ")}
       data-drop="set"
       data-set={setIndex}
-      onClick={() => {
-        if (canArrange && grab.holding) grab.dropOn({ kind: "set", set: setIndex, index: set.length });
+      onClick={(event) => {
+        event.stopPropagation();
+        if (canArrange && grab.holding) {
+          grab.dropOn({ kind: "set", set: setIndex, index: set.length });
+        }
       }}
     >
       {set.map((id, index) => {
         const slot: Slot = { kind: "set", set: setIndex, index };
-        const held = grab.holding?.tile === id;
+        const held = grab.isHeld(id);
         return (
           <Tile
             key={id}
@@ -126,8 +163,8 @@ function Tray({
                   }
                 : undefined
             }
-            // El toque ya lo resuelve el gesto; aquí solo se evita que el
-            // clic llegue a la bandeja y mueva la ficha dos veces.
+            // El toque ya lo resuelve el gesto; aquí solo se evita que el clic
+            // llegue a la bandeja y mueva la ficha dos veces.
             onClick={stop}
           />
         );

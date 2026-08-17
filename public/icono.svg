@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="tapete" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A4A47" />
+      <stop offset="1" stop-color="#0B2324" />
+    </linearGradient>
+    <linearGradient id="pasta" x1="0.15" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#FDF9F1" />
+      <stop offset="0.45" stop-color="#F5EEE0" />
+      <stop offset="1" stop-color="#E2D6BE" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#tapete)" />
+
+  <!-- El canto de la ficha, que le da grosor -->
+  <rect x="146" y="112" width="220" height="296" rx="26" fill="#B3A488" />
+  <rect x="146" y="104" width="220" height="296" rx="26" fill="url(#pasta)" />
+  <rect
+    x="146.5" y="104.5" width="219" height="295" rx="25.5"
+    fill="none" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="1"
+  />
+
+  <!-- El comodín: la cara sonriente que todo el mundo reconoce -->
+  <g transform="translate(256 232)" fill="none" stroke="#C8352C" stroke-width="15" stroke-linecap="round">
+    <circle r="76" />
+    <circle cx="-27" cy="-18" r="8" fill="#C8352C" stroke="none" />
+    <circle cx="27" cy="-18" r="8" fill="#C8352C" stroke="none" />
+    <path d="M-38 26c10 20 22 30 38 30s28-10 38-30" />
+  </g>
+
+  <!-- La marca de referencia bajo el dibujo, como en las fichas reales -->
+  <circle cx="256" cy="358" r="11" fill="#C8352C" fill-opacity="0.5" />
+</svg>

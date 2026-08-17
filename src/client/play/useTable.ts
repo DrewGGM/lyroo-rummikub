@@ -1,6 +1,6 @@
 /**
- * El estado de tu turno: qué has movido, qué puedes deshacer y qué ficha
- * llevas en la mano.
+ * El estado de tu turno: qué has movido, qué puedes deshacer y cuánto suma la
+ * jugada que llevas montada.
  *
  * Mantiene dos cosas separadas: la mesa que dice el servidor y la que estás
  * montando tú. Mientras no confirmes, solo cambia la tuya.
@@ -8,10 +8,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { openingValue } from "../../engine/board";
 import type { Board, TileId } from "../../engine/types";
 import {
   brokenSets,
   moveTile,
+  moveTiles,
+  runAround,
   sameLayout,
   sortRack,
   type Layout,
@@ -28,9 +31,14 @@ export type Table = {
   readonly broken: readonly number[];
   readonly touched: boolean;
   readonly canUndo: boolean;
+  /** Puntos que suma lo que has bajado, para la apertura. */
+  readonly opening: number;
   place(from: Slot, to: Slot): void;
+  placeMany(tiles: readonly TileId[], to: Slot): void;
   /** ¿Puede esta ficha acabar en ese sitio? */
   allows(from: Slot, to: Slot): boolean;
+  /** La combinación contigua del atril alrededor de esa posición. */
+  runAt(index: number): TileId[];
   undo(): void;
   reset(): void;
   sort(mode: SortMode): void;
@@ -80,6 +88,10 @@ export function useTable(
     [layout.board, onBoardBefore],
   );
 
+  const remember = useCallback((previous: Layout) => {
+    setHistory((past) => [...past.slice(-40), previous]);
+  }, []);
+
   const place = useCallback(
     (from: Slot, to: Slot) => {
       setLayout((current) => {
@@ -89,11 +101,31 @@ export function useTable(
         }
         const next = moveTile(current, from, to);
         if (sameLayout(next, current)) return current;
-        setHistory((past) => [...past.slice(-40), current]);
+        remember(current);
         return next;
       });
     },
-    [onBoardBefore],
+    [onBoardBefore, remember],
+  );
+
+  const placeMany = useCallback(
+    (tiles: readonly TileId[], to: Slot) => {
+      setLayout((current) => {
+        if (to.kind === "rack" && tiles.some((id) => onBoardBefore.has(id))) {
+          return current;
+        }
+        const next = moveTiles(current, tiles, to);
+        if (sameLayout(next, current)) return current;
+        remember(current);
+        return next;
+      });
+    },
+    [onBoardBefore, remember],
+  );
+
+  const runAt = useCallback(
+    (index: number) => runAround(layout.rack, index),
+    [layout.rack],
   );
 
   const undo = useCallback(() => {
@@ -110,14 +142,17 @@ export function useTable(
     setHistory([]);
   }, [baseline]);
 
-  const sort = useCallback((mode: SortMode) => {
-    setLayout((current) => {
-      const sorted = sortRack(current.rack, mode);
-      if (sorted.every((id, index) => id === current.rack[index])) return current;
-      setHistory((past) => [...past.slice(-40), current]);
-      return { board: current.board, rack: sorted };
-    });
-  }, []);
+  const sort = useCallback(
+    (mode: SortMode) => {
+      setLayout((current) => {
+        const sorted = sortRack(current.rack, mode);
+        if (sorted.every((id, index) => id === current.rack[index])) return current;
+        remember(current);
+        return { board: current.board, rack: sorted };
+      });
+    },
+    [remember],
+  );
 
   const played = useMemo(() => {
     const set = new Set<TileId>();
@@ -128,7 +163,19 @@ export function useTable(
   }, [layout.board, onBoardBefore]);
 
   const broken = useMemo(() => brokenSets(layout.board), [layout.board]);
-  const touched = useMemo(() => !sameLayout(layout, baseline), [layout, baseline]);
+  // Reordenar tu atril no es jugar: lo que cuenta es haber tocado la mesa.
+  const touched = useMemo(
+    () =>
+      !sameLayout(
+        { board: layout.board, rack: [] },
+        { board: baseline.board, rack: [] },
+      ),
+    [layout.board, baseline.board],
+  );
+  const opening = useMemo(
+    () => openingValue(baseline.board, layout.board),
+    [baseline.board, layout.board],
+  );
 
   return {
     board: layout.board,
@@ -137,8 +184,11 @@ export function useTable(
     broken,
     touched,
     canUndo: history.length > 0,
+    opening,
     place,
+    placeMany,
     allows,
+    runAt,
     undo,
     reset,
     sort,

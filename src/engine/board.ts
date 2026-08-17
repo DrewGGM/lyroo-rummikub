@@ -12,23 +12,22 @@
  */
 
 import { rejection, type Rejection, type RejectionCode } from "./errors";
+import { DEFAULT_RULES, type JokerRule } from "./rules";
 import { canonicalOrder, readSet, setValue } from "./sets";
 import { isJoker, parseTile } from "./tiles";
-import {
-  INITIAL_MELD_POINTS,
-  type Board,
-  type TileId,
-  type TileSet,
-  type TileSpec,
-} from "./types";
+import type { Board, TileId, TileSet, TileSpec } from "./types";
 
 export type CommitInput = {
   readonly previousBoard: Board;
   readonly previousRack: readonly TileId[];
   readonly nextBoard: Board;
   readonly nextRack: readonly TileId[];
-  /** Si el jugador ya hizo su jugada inicial de 30 puntos en un turno anterior. */
+  /** Si el jugador ya hizo su jugada inicial en un turno anterior. */
   readonly hasMelded: boolean;
+  /** Puntos que exige la mesa para abrir. */
+  readonly openingPoints?: number;
+  /** Qué variante del comodín se juega en esta mesa. */
+  readonly jokers?: JokerRule;
 };
 
 export type CommitOutcome =
@@ -191,12 +190,20 @@ export function commitMove(input: CommitInput): CommitOutcome {
     );
   }
 
+  const openingPoints = input.openingPoints ?? DEFAULT_RULES.openingPoints;
+  const jokers = input.jokers ?? DEFAULT_RULES.jokers;
+
   let meldValue = 0;
   if (!input.hasMelded) {
-    const outcome = checkInitialMeld(input.previousBoard, nextBoard, played);
+    const outcome = checkInitialMeld(
+      input.previousBoard,
+      nextBoard,
+      played,
+      openingPoints,
+    );
     if (!outcome.ok) return outcome;
     meldValue = outcome.value;
-  } else {
+  } else if (jokers === "strict") {
     for (const previousSet of input.previousBoard) {
       if (!jokerRuleHolds(previousSet, nextBoard)) {
         return reject(
@@ -216,15 +223,16 @@ export function commitMove(input: CommitInput): CommitOutcome {
   };
 }
 
-function checkInitialMeld(
+/**
+ * Separa lo que ya estaba en la mesa de lo que se acaba de bajar.
+ *
+ * `intact` es falso cuando alguna combinación anterior ha desaparecido o se ha
+ * tocado, que es justo lo que no se permite en la jugada inicial.
+ */
+export function freshSets(
   previousBoard: Board,
   nextBoard: Board,
-  played: readonly TileId[],
-):
-  | { readonly ok: true; readonly value: number }
-  | { readonly ok: false; readonly error: Rejection } {
-  // En la jugada inicial no se puede tocar la mesa: cada combinación que ya
-  // estaba tiene que seguir ahí exactamente igual.
+): { readonly fresh: Board; readonly intact: boolean } {
   const available = new Map<string, number[]>();
   nextBoard.forEach((set, index) => {
     const key = setKey(set);
@@ -234,38 +242,67 @@ function checkInitialMeld(
   });
 
   const untouched = new Set<number>();
+  let intact = true;
   for (const previousSet of previousBoard) {
-    const bucket = available.get(setKey(previousSet));
-    const index = bucket?.pop();
-    if (index === undefined) {
-      return reject(
-        "MELD_TOUCHES_BOARD",
-        "Tu primera jugada tiene que sumar 30 puntos solo con tus fichas, sin tocar la mesa.",
-      );
-    }
-    untouched.add(index);
+    const index = available.get(setKey(previousSet))?.pop();
+    if (index === undefined) intact = false;
+    else untouched.add(index);
   }
 
-  const freshSets = nextBoard.filter((_, index) => !untouched.has(index));
+  return {
+    fresh: nextBoard.filter((_, index) => !untouched.has(index)),
+    intact,
+  };
+}
+
+/**
+ * Puntos que vale la apertura tal y como está montada la mesa. El cliente lo
+ * usa para enseñar el contador, así que tiene que salir de aquí y no de una
+ * cuenta paralela: si se separaran, el contador diría una cosa y el servidor
+ * otra.
+ */
+export function openingValue(previousBoard: Board, nextBoard: Board): number {
+  const { fresh } = freshSets(previousBoard, nextBoard);
+  return fresh.reduce((total, set) => total + setValue(set), 0);
+}
+
+function checkInitialMeld(
+  previousBoard: Board,
+  nextBoard: Board,
+  played: readonly TileId[],
+  openingPoints: number,
+):
+  | { readonly ok: true; readonly value: number }
+  | { readonly ok: false; readonly error: Rejection } {
+  // En la jugada inicial no se puede tocar la mesa: cada combinación que ya
+  // estaba tiene que seguir ahí exactamente igual.
+  const { fresh: freshSetList, intact } = freshSets(previousBoard, nextBoard);
+  if (!intact) {
+    return reject(
+      "MELD_TOUCHES_BOARD",
+      `Tu primera jugada tiene que sumar ${openingPoints} puntos solo con tus fichas, sin tocar la mesa.`,
+    );
+  }
+
   const playedPool = countBy(played);
-  for (const set of freshSets) {
+  for (const set of freshSetList) {
     for (const id of set) {
       const left = playedPool.get(id) ?? 0;
       if (left === 0) {
         return reject(
           "MELD_TOUCHES_BOARD",
-          "Tu primera jugada tiene que sumar 30 puntos solo con tus fichas, sin tocar la mesa.",
+          `Tu primera jugada tiene que sumar ${openingPoints} puntos solo con tus fichas, sin tocar la mesa.`,
         );
       }
       playedPool.set(id, left - 1);
     }
   }
 
-  const value = freshSets.reduce((total, set) => total + setValue(set), 0);
-  if (value < INITIAL_MELD_POINTS) {
+  const value = freshSetList.reduce((total, set) => total + setValue(set), 0);
+  if (value < openingPoints) {
     return reject(
       "MELD_TOO_LOW",
-      `Tu primera jugada suma ${value} puntos y necesita al menos ${INITIAL_MELD_POINTS}.`,
+      `Tu primera jugada suma ${value} puntos y necesita al menos ${openingPoints}.`,
     );
   }
   return { ok: true, value };

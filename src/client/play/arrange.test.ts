@@ -1,0 +1,147 @@
+import { describe, expect, it } from "vitest";
+import { locate, moveTile, moveTiles, runAround, sortRack, type Layout } from "./arrange";
+
+const R = (v: number, c = 0) => `r${v}_${c}`;
+const B = (v: number, c = 0) => `b${v}_${c}`;
+const K = (v: number, c = 0) => `k${v}_${c}`;
+const O = (v: number, c = 0) => `o${v}_${c}`;
+const J = (c = 0) => `j_${c}`;
+
+const layout = (board: string[][], rack: string[]): Layout => ({ board, rack });
+
+describe("mover una ficha", () => {
+  it("la lleva del atril a una combinación nueva", () => {
+    const next = moveTile(layout([], [R(3), R(4)]), { kind: "rack", index: 0 }, { kind: "new" });
+    expect(next.board).toEqual([[R(3)]]);
+    expect(next.rack).toEqual([R(4)]);
+  });
+
+  it("la coloca en el sitio exacto de una combinación", () => {
+    const next = moveTile(
+      layout([[R(4), R(5)]], [R(3)]),
+      { kind: "rack", index: 0 },
+      { kind: "set", set: 0, index: 0 },
+    );
+    expect(next.board).toEqual([[R(3), R(4), R(5)]]);
+  });
+
+  it("reordena dentro del atril sin perder nada", () => {
+    const next = moveTile(
+      layout([], [R(1), R(2), R(3)]),
+      { kind: "rack", index: 0 },
+      { kind: "rack", index: 3 },
+    );
+    expect(next.rack).toEqual([R(2), R(3), R(1)]);
+  });
+
+  it("borra la combinación que se queda vacía", () => {
+    const next = moveTile(
+      layout([[R(3)]], []),
+      { kind: "set", set: 0, index: 0 },
+      { kind: "rack", index: 0 },
+    );
+    expect(next.board).toEqual([]);
+    expect(next.rack).toEqual([R(3)]);
+  });
+});
+
+describe("mover un grupo de fichas", () => {
+  it("baja una escalera entera a la mesa en orden", () => {
+    const base = layout([], [R(2), R(3), R(4), R(5), B(9)]);
+    const next = moveTiles(base, [R(3), R(4), R(5)], { kind: "new" });
+    expect(next.board).toEqual([[R(3), R(4), R(5)]]);
+    expect(next.rack).toEqual([R(2), B(9)]);
+  });
+
+  it("conserva todas las fichas al moverlas", () => {
+    const base = layout([[K(7), O(7)]], [R(7), B(7), R(1)]);
+    const next = moveTiles(base, [R(7), B(7)], { kind: "set", set: 0, index: 0 });
+    const antes = [...base.board.flat(), ...base.rack].sort();
+    const despues = [...next.board.flat(), ...next.rack].sort();
+    expect(despues).toEqual(antes);
+  });
+
+  it("las inserta delante de la ficha señalada, no en un índice viejo", () => {
+    // Al sacar r3 y r4 del atril los índices se corren; el grupo tiene que
+    // acabar igualmente delante del r6.
+    const base = layout([[R(5), R(6), R(7)]], [R(3), R(4)]);
+    const next = moveTiles(base, [R(3), R(4)], { kind: "set", set: 0, index: 1 });
+    expect(next.board).toEqual([[R(5), R(3), R(4), R(6), R(7)]]);
+  });
+
+  it("no hace nada al soltar el grupo sobre sí mismo", () => {
+    const base = layout([[R(3), R(4), R(5)]], []);
+    const next = moveTiles(base, [R(3), R(4)], { kind: "set", set: 0, index: 0 });
+    expect(next).toEqual(base);
+  });
+
+  it("recupera un grupo de la mesa al atril", () => {
+    const base = layout([[R(3), R(4), R(5)]], [B(1)]);
+    const next = moveTiles(base, [R(3), R(4), R(5)], { kind: "rack", index: 1 });
+    expect(next.board).toEqual([]);
+    expect(next.rack).toEqual([B(1), R(3), R(4), R(5)]);
+  });
+
+  it("ignora una lista vacía", () => {
+    const base = layout([[R(3), R(4), R(5)]], []);
+    expect(moveTiles(base, [], { kind: "new" })).toEqual(base);
+  });
+});
+
+describe("encontrar la combinación alrededor de una ficha", () => {
+  it("coge la escalera contigua completa", () => {
+    const rack = [B(1), R(3), R(4), R(5), K(9)];
+    expect(runAround(rack, 2)).toEqual([R(3), R(4), R(5)]);
+  });
+
+  it("coge el grupo contiguo completo", () => {
+    const rack = [B(1), R(7), B(7), K(7), O(7), K(9)];
+    expect(runAround(rack, 2)).toEqual([R(7), B(7), K(7), O(7)]);
+  });
+
+  it("prefiere la combinación más larga que la contenga", () => {
+    const rack = [R(2), R(3), R(4), R(5), R(6)];
+    expect(runAround(rack, 3)).toHaveLength(5);
+  });
+
+  it("aprovecha el comodín si está al lado", () => {
+    const rack = [R(3), J(), R(5), K(1)];
+    expect(runAround(rack, 0)).toEqual([R(3), J(), R(5)]);
+  });
+
+  it("no devuelve nada si las vecinas no forman combinación", () => {
+    const rack = [R(3), B(8), K(11), O(2)];
+    expect(runAround(rack, 1)).toEqual([]);
+  });
+
+  it("no se sale del atril por los extremos", () => {
+    const rack = [R(3), R(4), R(5)];
+    expect(runAround(rack, 0)).toEqual(rack);
+    expect(runAround(rack, 2)).toEqual(rack);
+    expect(runAround(rack, 9)).toEqual([]);
+  });
+});
+
+describe("localizar y ordenar", () => {
+  it("dice dónde está cada ficha", () => {
+    const base = layout([[R(3), R(4), R(5)]], [B(1)]);
+    expect(locate(base, R(4))).toEqual({ kind: "set", set: 0, index: 1 });
+    expect(locate(base, B(1))).toEqual({ kind: "rack", index: 0 });
+    expect(locate(base, O(13))).toBeNull();
+  });
+
+  it("ordena por escaleras agrupando colores", () => {
+    const ordenado = sortRack([B(5), R(3), R(1), B(2)], "runs");
+    expect(ordenado).toEqual([R(1), R(3), B(2), B(5)]);
+  });
+
+  it("ordena por grupos agrupando números", () => {
+    const ordenado = sortRack([B(5), R(3), R(5), B(3)], "groups");
+    expect(ordenado).toEqual([R(3), B(3), R(5), B(5)]);
+  });
+
+  it("deja los comodines al final", () => {
+    const ordenado = sortRack([J(), R(3), B(2)], "runs");
+    expect(ordenado[ordenado.length - 1]).toBe(J());
+  });
+});

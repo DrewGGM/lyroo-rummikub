@@ -8,6 +8,8 @@
 
 import { commitMove } from "./board";
 import { rejection, type Rejection, type RejectionCode } from "./errors";
+import { sortRack } from "./order";
+import { DEFAULT_RULES, sanitizeRules, type RoomRules } from "./rules";
 import { deal, HAND_SIZE, MAX_PLAYERS, MIN_PLAYERS, rackPenalty } from "./tiles";
 import type { Board, TileId } from "./types";
 
@@ -42,8 +44,9 @@ export type GameState = {
   turnIndex: number;
   board: Board;
   pool: TileId[];
-  turnSeconds: number;
-  /** Momento en que expira el turno actual, en epoch ms. */
+  /** La variante que se juega en esta mesa. Se fija antes de repartir. */
+  rules: RoomRules;
+  /** Momento en que expira el turno actual, o null si se juega sin reloj. */
   turnEndsAt: number | null;
   /** Pasadas seguidas con el pozo vacío; sirve para detectar el bloqueo. */
   passStreak: number;
@@ -60,11 +63,7 @@ export type Success = {
 };
 export type Transition = Success | Failure;
 
-export const DEFAULT_TURN_SECONDS = 60;
-export const MIN_TURN_SECONDS = 20;
-export const MAX_TURN_SECONDS = 180;
-
-export function createGame(code: string, turnSeconds = DEFAULT_TURN_SECONDS): GameState {
+export function createGame(code: string, rules: RoomRules = DEFAULT_RULES): GameState {
   return {
     code,
     status: "lobby",
@@ -73,7 +72,7 @@ export function createGame(code: string, turnSeconds = DEFAULT_TURN_SECONDS): Ga
     turnIndex: 0,
     board: [],
     pool: [],
-    turnSeconds: clampTurnSeconds(turnSeconds),
+    rules: sanitizeRules(rules),
     turnEndsAt: null,
     passStreak: 0,
     winnerId: null,
@@ -82,9 +81,19 @@ export function createGame(code: string, turnSeconds = DEFAULT_TURN_SECONDS): Ga
   };
 }
 
-export function clampTurnSeconds(seconds: number): number {
-  if (!Number.isFinite(seconds)) return DEFAULT_TURN_SECONDS;
-  return Math.min(MAX_TURN_SECONDS, Math.max(MIN_TURN_SECONDS, Math.round(seconds)));
+/**
+ * Cambia la variante de la mesa. Solo antes de repartir: nadie debe encontrarse
+ * con que la apertura sube a 50 puntos cuando ya lleva media partida.
+ */
+export function setRules(state: GameState, actorId: string, raw: unknown): Transition {
+  if (state.status !== "lobby") {
+    return fail("ALREADY_STARTED", "Las reglas se ajustan antes de repartir.");
+  }
+  if (actorId !== state.hostId) {
+    return fail("NOT_HOST", "Solo quien creó la sala puede cambiar las reglas.");
+  }
+  state.rules = sanitizeRules(raw);
+  return succeed(state);
 }
 
 export function findPlayer(state: GameState, playerId: string): Player | undefined {
@@ -212,10 +221,11 @@ export function startGame(
     return fail("NOT_ENOUGH_PLAYERS", `Hacen falta al menos ${MIN_PLAYERS} jugadores.`);
   }
 
-  const { hands, pool } = deal(state.players.length, seed);
+  const { hands, pool } = deal(state.players.length, seed, state.rules.handSize);
   state.players = state.players.map((player, index) => ({
     ...player,
-    rack: hands[index] ?? [],
+    // Ordenada de salida: nadie debería empezar colocando catorce fichas.
+    rack: sortRack(hands[index] ?? [], "runs"),
     hasMelded: false,
   }));
   state.pool = pool;
@@ -225,7 +235,7 @@ export function startGame(
   state.passStreak = 0;
   state.winnerId = null;
   state.round += 1;
-  state.turnEndsAt = now + state.turnSeconds * 1000;
+  state.turnEndsAt = turnDeadline(state, now);
   return succeed(state, { type: "started" });
 }
 
@@ -250,6 +260,8 @@ export function commitTurn(
     nextBoard: request.board,
     nextRack: request.rack,
     hasMelded: player.hasMelded,
+    openingPoints: state.rules.openingPoints,
+    jokers: state.rules.jokers,
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 
@@ -333,8 +345,14 @@ function guardTurn(state: GameState, actorId: string): Failure | null {
 
 function advanceTurn(state: GameState, now: number): GameEvent[] {
   state.turnIndex = (state.turnIndex + 1) % state.players.length;
-  state.turnEndsAt = now + state.turnSeconds * 1000;
+  state.turnEndsAt = turnDeadline(state, now);
   return [];
+}
+
+/** Cuándo vence el turno, o null si la mesa juega sin reloj. */
+export function turnDeadline(state: GameState, now: number): number | null {
+  const seconds = state.rules.turnSeconds;
+  return seconds === null ? null : now + seconds * 1000;
 }
 
 function finish(state: GameState, winnerId: string | null): GameEvent[] {

@@ -164,3 +164,46 @@ input {
   white-space: nowrap;
   border: 0;
 }
+
+/* --- Grupo de opciones -------------------------------------------------- */
+
+.segmented {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+}
+
+.segmented__icon {
+  margin-left: 0.35rem;
+  color: var(--chalk-dim);
+}
+
+.segmented__choice {
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  color: var(--chalk-dim);
+  white-space: nowrap;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.segmented__choice:hover:not(:disabled) {
+  color: var(--chalk);
+}
+
+.segmented__choice[aria-pressed="true"] {
+  background: var(--lamp);
+  color: #2b1c00;
+}
+
+.segmented__choice:disabled {
+  cursor: default;
+}
+
+.segmented__choice:disabled[aria-pressed="false"] {
+  opacity: 0.4;
+}

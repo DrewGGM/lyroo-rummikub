@@ -1,7 +1,10 @@
-import type { PointerEvent } from "react";
+import { useMemo, type PointerEvent, type ReactNode } from "react";
+import { ArrowUpDown, Undo2 } from "lucide-react";
 
 import type { TileId } from "../../engine/types";
 import type { Slot, SortMode } from "../play/arrange";
+import { fitRackTile } from "../play/fit";
+import { tileSizeStyle, useMeasuredBox } from "../play/useAutoFit";
 import type { Grab } from "../play/useGrab";
 import { Tile } from "./Tile";
 
@@ -9,13 +12,13 @@ type RackProps = {
   rack: readonly TileId[];
   grab: Grab;
   canArrange: boolean;
-  /** Índice de reparto para escalonar la animación al empezar la partida. */
+  /** Escalona la animación del reparto al empezar la ronda. */
   dealing: boolean;
   onSort: (mode: SortMode) => void;
   sortMode: SortMode;
   onUndo: () => void;
   canUndo: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 export function Rack({
@@ -29,6 +32,10 @@ export function Rack({
   canUndo,
   children,
 }: RackProps) {
+  const [ref, box] = useMeasuredBox<HTMLDivElement>();
+  // El atril tampoco se desplaza: con veinte fichas encogen hasta caber.
+  const tile = useMemo(() => fitRackTile(rack.length, box), [rack.length, box]);
+
   const targeted = grab.target?.kind === "rack";
 
   return (
@@ -42,12 +49,14 @@ export function Rack({
           onClick={onUndo}
           disabled={!canUndo}
         >
+          <Undo2 size={15} aria-hidden />
           Deshacer
         </button>
-        <div className="lobby__choices" role="group" aria-label="Ordenar el atril">
+        <div className="segmented" role="group" aria-label="Ordenar el atril">
+          <ArrowUpDown size={14} className="segmented__icon" aria-hidden />
           <button
             type="button"
-            className="lobby__choice"
+            className="segmented__choice"
             aria-pressed={sortMode === "runs"}
             onClick={() => onSort("runs")}
           >
@@ -55,7 +64,7 @@ export function Rack({
           </button>
           <button
             type="button"
-            className="lobby__choice"
+            className="segmented__choice"
             aria-pressed={sortMode === "groups"}
             onClick={() => onSort("groups")}
           >
@@ -66,6 +75,8 @@ export function Rack({
 
       <div
         className={`rack__ledge${targeted ? " rack__ledge--target" : ""}`}
+        ref={ref}
+        style={tileSizeStyle(tile)}
         data-drop="rack"
         onClick={() => {
           if (canArrange && grab.holding) {
@@ -75,7 +86,7 @@ export function Rack({
       >
         {rack.map((id, index) => {
           const slot: Slot = { kind: "rack", index };
-          const held = grab.holding?.tile === id;
+          const held = grab.isHeld(id);
           return (
             <Tile
               key={id}

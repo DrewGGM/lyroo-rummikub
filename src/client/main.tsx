@@ -13,6 +13,7 @@ import "./styles/table.css";
 import "./styles/home.css";
 
 import { App } from "./App";
+import { keepFresh } from "./net/updates";
 
 const mount = document.getElementById("mesa");
 if (!mount) throw new Error("Falta el contenedor #mesa en el documento.");
@@ -22,3 +23,5 @@ createRoot(mount).render(
     <App />
   </StrictMode>,
 );
+
+keepFresh();

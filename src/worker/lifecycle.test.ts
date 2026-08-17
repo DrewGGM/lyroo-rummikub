@@ -28,7 +28,7 @@ async function createRoom(turnSeconds?: number): Promise<string> {
     new Request(`${ORIGIN}/api/rooms`, {
       method: "POST",
       headers: { "CF-Connecting-IP": `192.0.2.${visitor % 250}` },
-      body: JSON.stringify(turnSeconds === undefined ? {} : { turnSeconds }),
+      body: JSON.stringify(turnSeconds === undefined ? {} : { rules: { turnSeconds } }),
     }),
   );
   const body = (await response.json()) as { code: string };

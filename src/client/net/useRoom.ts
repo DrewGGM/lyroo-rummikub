@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMessage, GameView, ServerMessage } from "../../protocol";
 import type { GameEvent } from "../../engine/game";
 import type { RejectionCode } from "../../engine/errors";
+import type { Board } from "../../engine/types";
 import { rememberSeat, seatToken } from "./identity";
 
 export type Link = "connecting" | "open" | "retrying" | "closed";
@@ -33,15 +34,23 @@ export type Denial = {
   readonly message: string;
 };
 
+/** La mesa que otro jugador está montando ahora mismo, sin confirmar. */
+export type Preview = {
+  readonly playerId: string;
+  readonly board: Board;
+};
+
 export type Room = {
   link: Link;
   view: GameView | null;
   refusal: Refusal | null;
   denial: Denial | null;
   events: readonly GameEvent[];
+  preview: Preview | null;
   /** Desfase entre el reloj del servidor y el de este dispositivo, en ms. */
   clockSkew: number;
-  send(message: ClientMessage): void;
+  /** Envía y dice si de verdad salió: sin conexión no sale nada. */
+  send(message: ClientMessage): boolean;
   clearRefusal(): void;
 };
 
@@ -55,6 +64,7 @@ export function useRoom(code: string | null, name: string | null): Room {
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [denial, setDenial] = useState<Denial | null>(null);
   const [events, setEvents] = useState<readonly GameEvent[]>([]);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [clockSkew, setClockSkew] = useState(0);
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -131,6 +141,11 @@ export function useRoom(code: string | null, name: string | null): Room {
             setView(message.view);
             setClockSkew(message.view.serverTime - Date.now());
             if (message.events.length > 0) setEvents(message.events);
+            // El estado autoritativo sustituye a cualquier mesa en curso.
+            setPreview(null);
+            break;
+          case "preview":
+            setPreview({ playerId: message.playerId, board: message.board });
             break;
           case "rejected":
             setRefusal({
@@ -173,12 +188,22 @@ export function useRoom(code: string | null, name: string | null): Room {
 
   const send = useCallback((message: ClientMessage) => {
     const socket = socketRef.current;
-    if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message));
-    }
+    if (socket?.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(message));
+    return true;
   }, []);
 
   const clearRefusal = useCallback(() => setRefusal(null), []);
 
-  return { link, view, refusal, denial, events, clockSkew, send, clearRefusal };
+  return {
+    link,
+    view,
+    refusal,
+    denial,
+    events,
+    preview,
+    clockSkew,
+    send,
+    clearRefusal,
+  };
 }

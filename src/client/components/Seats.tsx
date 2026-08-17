@@ -1,12 +1,18 @@
+import { WifiOff } from "lucide-react";
+
 import type { GameView } from "../../protocol";
 
 type SeatsProps = {
   view: GameView;
-  /** Segundos que quedan del turno, ya corregidos con el reloj del servidor. */
+  /** Segundos que quedan del turno, o null si la mesa juega sin reloj. */
   secondsLeft: number | null;
+  /** Quién está moviendo fichas ahora mismo. */
+  movingId: string | null;
 };
 
-export function Seats({ view, secondsLeft }: SeatsProps) {
+export function Seats({ view, secondsLeft, movingId }: SeatsProps) {
+  const total = view.rules.turnSeconds;
+
   return (
     <div className="seats" role="list" aria-label="Jugadores">
       {view.players.map((player) => {
@@ -14,15 +20,13 @@ export function Seats({ view, secondsLeft }: SeatsProps) {
         const classes = ["seat"];
         if (isTurn) classes.push("seat--turn");
         if (!player.connected) classes.push("seat--away");
+        if (player.id === movingId) classes.push("seat--moving");
 
         return (
           <div className={classes.join(" ")} key={player.id} role="listitem">
             <span className="seat__clock">
-              {isTurn && secondsLeft !== null ? (
-                <TurnRing
-                  secondsLeft={secondsLeft}
-                  total={view.turnSeconds}
-                />
+              {isTurn && secondsLeft !== null && total !== null ? (
+                <TurnRing secondsLeft={secondsLeft} total={total} />
               ) : null}
               <span className="seat__initial">
                 {player.name.slice(0, 1).toUpperCase()}
@@ -32,10 +36,13 @@ export function Seats({ view, secondsLeft }: SeatsProps) {
               {player.name}
               {player.id === view.you ? " (tú)" : ""}
             </span>
-            <span className="seat__count">
-              {view.status === "playing" ? player.tileCount : ""}
-              {!player.connected ? " sin conexión" : ""}
-            </span>
+            {player.connected ? (
+              <span className="seat__count">
+                {view.status === "playing" ? player.tileCount : ""}
+              </span>
+            ) : (
+              <WifiOff size={13} className="seat__away" aria-label="sin conexión" />
+            )}
           </div>
         );
       })}

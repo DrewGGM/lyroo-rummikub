@@ -12,9 +12,9 @@ Todo corre sobre Cloudflare y cabe entero en el plan gratuito.
 1. Alguien pulsa **Crear mesa** y comparte el enlace `…/g/ABC7K2`.
 2. Cada persona escribe su nombre y entra.
 3. Quien creó la mesa reparte cuando estén todos.
-4. En tu turno montas la jugada en tu pantalla —arrastrando fichas o tocando
-   origen y destino— y pulsas **Confirmar jugada**. Hasta ese momento nadie ve
-   lo que estás probando.
+4. En tu turno montas la jugada en tu pantalla y pulsas **Confirmar**. Puedes
+   arrastrar, tocar origen y destino, o **dejar pulsada** una ficha para coger
+   de una vez la escalera entera que tenga al lado.
 5. Gana quien se queda sin fichas. Si el pozo se agota y todos pasan, gana quien
    menos puntos tenga en el atril.
 
@@ -23,8 +23,12 @@ lo que ya hay en la mesa. Después ya puedes recolocar la mesa entera.
 
 ## Reglas de mesa
 
-Se juega con las reglas oficiales (versión Sabra), con dos decisiones tomadas
-explícitamente:
+Antes de repartir, quien crea la mesa elige la variante: **tiempo por turno**
+(30, 60, 90, 120 segundos o sin reloj), **puntos para abrir** (25, 30 o 50),
+**fichas al repartir** (14 o 16) y si el **comodín** va protegido o libre.
+
+Los valores por defecto son los oficiales (versión Sabra), con dos decisiones
+tomadas explícitamente:
 
 - **El comodín está protegido.** Mientras un comodín esté en una combinación, esa
   combinación solo admite fichas nuevas: no se puede romper ni reordenar. Para
@@ -33,6 +37,10 @@ explícitamente:
   si alguna de ellas la justifica.
 - **Al acabarse el tiempo se roba y se pasa.** El servidor no sabe qué estabas
   montando —eso vive solo en tu pantalla—, así que la mesa no se toca.
+
+Mientras alguien recoloca la mesa, los demás lo ven moverse en vivo. Esa vista
+previa no se valida ni se guarda: es un reflejo de su pantalla, y el estado
+autoritativo la sustituye en cuanto confirma.
 
 ### Fichas según cuántos seáis
 
@@ -109,12 +117,26 @@ Cloudflare, no en una imitación, así que lo que ves en local es lo que se
 despliega.
 
 ```bash
-npm test             # motor de reglas
+npm test             # motor de reglas y colocación de fichas
 npm run test:worker  # sala, WebSockets, alarmas e hibernación
 npm run test:all     # ambos
-npm run test:e2e     # partida real entre dos navegadores
+npm run test:e2e     # partidas reales entre dos navegadores
 npm run typecheck
 ```
+
+### Robots jugando
+
+```bash
+npm run test:bots                          # una partida de tres
+PARTIDAS=3 JUGADORES=4 npm run test:bots   # tres partidas de cuatro
+```
+
+Cada robot abre su propio navegador, lee su atril de la pantalla, decide con el
+mismo motor que usa el servidor y juega tocando fichas. Después comprueba lo que
+ninguna partida legítima puede romper: que las fichas se conservan, que nadie
+tiene una repetida, que todos ven el mismo turno y el mismo pozo, que jamás se
+rechaza una jugada que el motor daba por buena, y que no salta ningún error en
+consola. Es la prueba que encuentra lo que no se ve mirando una pantalla.
 
 ## Desplegar
 
@@ -134,6 +156,18 @@ pueden lanzar contra el despliegue:
 MESA_URL=https://rummikub.andrewgarcia.dev npm run test:e2e
 ```
 
+## Detalles que cuestan de ver
+
+- **La mesa nunca se desplaza.** Las fichas encogen conforme se llena, con un
+  cálculo que simula cómo caen las filas y busca el mayor tamaño que entra
+  (`src/client/play/fit.ts`). Hacer scroll mientras juegas es insoportable.
+- **Está pensada para horizontal**, que es como se juega de verdad. Ahí los
+  jugadores se meten en la barra superior y los botones se ponen al lado del
+  atril: en un móvil tumbado el alto es lo único que escasea.
+- **Es una PWA**: se instala en la pantalla de inicio, arranca sin conexión y se
+  actualiza sola. La partida vive en el servidor, así que ni la API ni el
+  WebSocket se cachean jamás.
+
 ## Mapa del código
 
 ```
@@ -143,7 +177,9 @@ src/
 │   ├── sets.ts      Grupos, escaleras y lecturas del comodín
 │   ├── board.ts     Validación de una jugada completa
 │   └── game.ts      Estado de la partida y sus transiciones
+│   ├── rules.ts     La variante que se juega en cada mesa
+│   └── order.ts     Cómo se ordena el atril
 ├── protocol/    Mensajes y la vista recortada que ve cada jugador
 ├── worker/      Rutas y el Durable Object de la sala
-└── client/      React: pantallas, fichas, arrastre y conexión
+└── client/      React: pantallas, fichas, gestos, ajuste y conexión
 ```

@@ -101,7 +101,7 @@ test.describe("sala", () => {
 
     await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
     await expect(guest.page.locator(".rack__ledge .tile")).toHaveCount(14);
-    await expect(hostPage.locator(".bar__pool strong")).toHaveText("78");
+    await expect(hostPage.locator(".bar__pool")).toContainText("78");
 
     await host.close();
     await guest.context.close();
@@ -146,13 +146,13 @@ test.describe("turno", () => {
 
     // Quien no tiene el turno no puede tocar nada.
     await expect(
-      guest.page.getByRole("button", { name: "Espera tu turno" }),
+      guest.page.getByRole("button", { name: "Espera" }),
     ).toBeDisabled();
 
     // Cojo una ficha con un toque y la dejo en una combinación nueva.
     await tap(hostPage.locator(".rack__ledge .tile").first());
     await expect(hostPage.locator(".tile--picked")).toHaveCount(1);
-    await tap(hostPage.locator('[data-drop="new"]'));
+    await tap(hostPage.locator(".tray--new"));
 
     await expect(hostPage.locator(".felt__sets .tray:not(.tray--new)")).toHaveCount(1);
     await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(13);
@@ -184,13 +184,13 @@ test.describe("turno", () => {
     await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
 
     await expect(hostPage.locator(".seat--turn")).toContainText("Ana");
-    await hostPage.getByRole("button", { name: "Robar y pasar" }).click();
+    await hostPage.getByRole("button", { name: "Robar" }).click();
 
     await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(15);
     await expect(hostPage.locator(".seat--turn")).toContainText("Beto");
     await expect(guest.page.locator(".seat--turn")).toContainText("Beto (tú)");
-    await expect(guest.page.getByRole("button", { name: "Robar y pasar" })).toBeEnabled();
-    await expect(hostPage.locator(".bar__pool strong")).toHaveText("77");
+    await expect(guest.page.getByRole("button", { name: "Robar" })).toBeEnabled();
+    await expect(hostPage.locator(".bar__pool")).toContainText("77");
 
     await host.close();
     await guest.context.close();
@@ -223,13 +223,13 @@ test.describe("turno", () => {
           const target =
             setIndex < (await laidSets.count())
               ? laidSets.nth(setIndex)
-              : hostPage.locator('[data-drop="new"]');
+              : hostPage.locator(".tray--new");
           await tap(target);
         }
       }
 
       await expect(hostPage.locator(".tray--broken")).toHaveCount(0);
-      await hostPage.getByRole("button", { name: "Confirmar jugada" }).click();
+      await hostPage.getByRole("button", { name: "Confirmar" }).click();
 
       const played = opening.flat().length;
       // La mesa aparece en la pantalla del otro jugador, y el turno pasa.
@@ -309,14 +309,14 @@ test.describe("final de partida", () => {
     while (Date.now() < deadline) {
       if (await hostPage.locator(".score").count()) break;
       const playing = await Promise.all(
-        pages.map((page) => page.getByRole("button", { name: "Robar y pasar" }).isEnabled()),
+        pages.map((page) => page.getByRole("button", { name: "Robar" }).isEnabled()),
       );
       const index = playing.indexOf(true);
       if (index < 0) {
         await hostPage.waitForTimeout(50);
         continue;
       }
-      await pages[index]!.getByRole("button", { name: "Robar y pasar" }).click();
+      await pages[index]!.getByRole("button", { name: "Robar" }).click();
       draws += 1;
     }
     // 78 robos para vaciar el pozo y dos pases para cerrar la partida.

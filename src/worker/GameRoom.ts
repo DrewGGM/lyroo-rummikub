@@ -10,16 +10,19 @@
 
 import { DurableObject } from "cloudflare:workers";
 
+import type { Board } from "../engine/types";
+
 import {
   addPlayer,
-  clampTurnSeconds,
   commitTurn,
   createGame,
   drawTile,
   prepareRematch,
   setConnected,
+  setRules,
   startGame,
   timeoutTurn,
+  turnDeadline,
   type GameEvent,
   type GameState,
   type Transition,
@@ -29,6 +32,7 @@ import {
   type ClientMessage,
   type ServerMessage,
 } from "../protocol";
+import type { RoomRules } from "../engine/rules";
 import { buildView } from "../protocol/view";
 
 type SocketAttachment = { playerId: string };
@@ -71,9 +75,9 @@ export class GameRoom extends DurableObject<Env> {
    * Reserva el código para una sala nueva. Devuelve false si ya estaba en uso,
    * para que quien crea la partida pueda probar con otro código.
    */
-  claim(code: string, turnSeconds: number): boolean {
+  claim(code: string, rules: RoomRules): boolean {
     if (this.#load()) return false;
-    this.#save(createGame(code, turnSeconds));
+    this.#save(createGame(code, rules));
     return true;
   }
 
@@ -263,11 +267,15 @@ export class GameRoom extends DurableObject<Env> {
       case "rematch":
         this.#apply(state, prepareRematch(state, seat), ws);
         return;
-      case "settings": {
-        if (seat !== state.hostId || state.status !== "lobby") return;
-        state.turnSeconds = clampTurnSeconds(message.turnSeconds);
-        this.#save(state);
-        this.#broadcast(state, []);
+      case "settings":
+        this.#apply(state, setRules(state, seat, message.rules), ws);
+        return;
+      case "preview": {
+        // No se valida ni se guarda: es un reflejo de lo que hay en la pantalla
+        // de quien juega, y el siguiente estado autoritativo lo sustituye.
+        if (state.status !== "playing") return;
+        if (state.players[state.turnIndex]?.id !== seat) return;
+        this.#relayPreview(ws, seat, message.board);
         return;
       }
       case "sort": {
@@ -324,7 +332,7 @@ export class GameRoom extends DurableObject<Env> {
     if (state.status !== "playing" || state.turnEndsAt === null) return state;
     const now = Date.now();
     if (state.turnEndsAt > now) return state;
-    state.turnEndsAt = now + state.turnSeconds * 1000;
+    state.turnEndsAt = turnDeadline(state, now);
     return state;
   }
 
@@ -350,6 +358,15 @@ export class GameRoom extends DurableObject<Env> {
       .exec<{ player_id: string }>("SELECT player_id FROM seat WHERE token = ?", token)
       .toArray();
     return rows[0]?.player_id ?? null;
+  }
+
+  /** Reenvía la mesa en curso al resto de la mesa, sin tocar nada. */
+  #relayPreview(origin: WebSocket, playerId: string, board: Board): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === origin) continue;
+      if (!this.#seatOf(socket)) continue;
+      this.#send(socket, { type: "preview", playerId, board });
+    }
   }
 
   #send(ws: WebSocket, message: ServerMessage): void {

@@ -210,39 +210,50 @@
   color: var(--chalk-dim);
 }
 
-.lobby__setting {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-3);
+/* --- Reglas de la mesa --------------------------------------------------- */
+
+.rules {
+  display: grid;
+  gap: var(--gap-2);
   width: 100%;
+  padding: var(--gap-4);
+  border-radius: var(--radius-panel);
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
 }
 
-.lobby__setting label {
+.rules .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: var(--gap-1);
+}
+
+.rules__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap-2);
+}
+
+.rules__label {
+  flex: 1;
+  min-width: 9rem;
   font-size: var(--step-s);
   color: var(--chalk-soft);
 }
 
-.lobby__choices {
-  display: flex;
-  gap: var(--gap-1);
-  margin-left: auto;
-  padding: 0.2rem;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.3);
-}
-
-.lobby__choice {
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  font-family: var(--face-data);
+.rules__note {
+  margin-top: var(--gap-1);
   font-size: var(--step-xs);
   color: var(--chalk-dim);
-  transition: background-color 160ms ease, color 160ms ease;
+  text-wrap: pretty;
 }
 
-.lobby__choice[aria-pressed="true"] {
-  background: var(--lamp);
-  color: #2b1c00;
+.card__form {
+  display: grid;
+  gap: var(--gap-3);
+  width: 100%;
 }
 
 /* --- Resultado ---------------------------------------------------------- */

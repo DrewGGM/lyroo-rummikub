@@ -192,6 +192,20 @@ describe("jugada inicial de 30 puntos", () => {
   });
 });
 
+describe("casos vistos jugando", () => {
+  it("abre con un grupo de treces completado por un comodín", () => {
+    // 13 + 13 + 13 son 39 puntos: sobra para abrir.
+    const outcome = commit({
+      hasMelded: false,
+      previousRack: [O(13), K(13), J(), R(1), B(2)],
+      nextBoard: [[O(13), K(13), J()]],
+      nextRack: [R(1), B(2)],
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.meldValue).toBe(39);
+  });
+});
+
 describe("regla del comodín", () => {
   it("deja añadir fichas a una combinación con comodín", () => {
     const outcome = commit({

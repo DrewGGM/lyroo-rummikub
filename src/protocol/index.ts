@@ -13,6 +13,7 @@
 
 import type { GameEvent, GameStatus } from "../engine/game";
 import type { RejectionCode } from "../engine/errors";
+import type { RoomRules } from "../engine/rules";
 import type { Board, TileId } from "../engine/types";
 
 export type PlayerView = {
@@ -32,9 +33,9 @@ export type GameView = {
   readonly players: readonly PlayerView[];
   readonly hostId: string;
   readonly turnPlayerId: string | null;
-  /** Momento en que expira el turno, en el reloj del servidor. */
+  /** Momento en que expira el turno, o null si la mesa juega sin reloj. */
   readonly turnEndsAt: number | null;
-  readonly turnSeconds: number;
+  readonly rules: RoomRules;
   readonly board: Board;
   readonly poolCount: number;
   readonly winnerId: string | null;
@@ -58,7 +59,13 @@ export type ClientMessage =
   /** Guarda el orden en que el jugador tiene colocado su atril. */
   | { readonly type: "sort"; readonly rack: TileId[] }
   | { readonly type: "rematch" }
-  | { readonly type: "settings"; readonly turnSeconds: number };
+  | { readonly type: "settings"; readonly rules: unknown }
+  /**
+   * Lo que el jugador de turno está montando ahora mismo. El servidor lo
+   * reenvía sin validarlo ni guardarlo: es solo para que los demás vean la
+   * mesa moverse en vivo.
+   */
+  | { readonly type: "preview"; readonly board: Board };
 
 export type ServerMessage =
   | {
@@ -78,6 +85,12 @@ export type ServerMessage =
       readonly code: RejectionCode;
       readonly message: string;
       readonly setIndexes?: readonly number[];
+    }
+  | {
+      /** Un jugador está moviendo fichas; todavía no ha confirmado nada. */
+      readonly type: "preview";
+      readonly playerId: string;
+      readonly board: Board;
     }
   | {
       readonly type: "denied";
@@ -143,10 +156,12 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (!rack) return null;
       return { type: "sort", rack };
     }
-    case "settings": {
-      const seconds = message["turnSeconds"];
-      if (typeof seconds !== "number" || !Number.isFinite(seconds)) return null;
-      return { type: "settings", turnSeconds: seconds };
+    case "settings":
+      return { type: "settings", rules: message["rules"] };
+    case "preview": {
+      const board = parseBoard(message["board"]);
+      if (!board) return null;
+      return { type: "preview", board };
     }
     default:
       return null;

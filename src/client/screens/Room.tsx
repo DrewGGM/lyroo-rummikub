@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, Check, Copy, Hand, Layers, Share2, Users } from "lucide-react";
 
 import type { GameView } from "../../protocol";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../../engine/game";
+import {
+  HAND_SIZE_CHOICES,
+  JOKER_CHOICES,
+  OPENING_CHOICES,
+  TURN_SECONDS_CHOICES,
+  type RoomRules,
+} from "../../engine/rules";
+import { Feed } from "../components/Feed";
 import { Felt } from "../components/Felt";
 import { Rack } from "../components/Rack";
 import { Seats } from "../components/Seats";
@@ -89,7 +98,7 @@ function NameCard({
         Es lo único que verán los demás. No hace falta ninguna cuenta.
       </p>
       <form
-        style={{ display: "grid", gap: "0.75rem", width: "100%" }}
+        className="card__form"
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim()) onSit();
@@ -104,11 +113,7 @@ function NameCard({
           autoComplete="nickname"
           autoFocus
         />
-        <button
-          type="submit"
-          className="press press--lamp"
-          disabled={!name.trim()}
-        >
+        <button type="submit" className="press press--lamp" disabled={!name.trim()}>
           Sentarme a la mesa
         </button>
         <button type="button" className="press press--ghost" onClick={onLeave}>
@@ -121,6 +126,9 @@ function NameCard({
 
 // --- Ya sentado -----------------------------------------------------------
 
+/** Cada cuánto se cuenta a los demás lo que estás moviendo. */
+const PREVIEW_EVERY_MS = 350;
+
 function Seated({
   view,
   link,
@@ -132,21 +140,25 @@ function Seated({
 }) {
   const isMyTurn = view.turnPlayerId === view.you;
   const table = useTable(view.board, view.rack as string[]);
-  const grab = useGrab(table.place, table.allows, isMyTurn);
+  const grab = useGrab(table.place, table.placeMany, table.allows, table.runAt, isMyTurn);
 
   const secondsLeft = useTurnClock(view, link.clockSkew);
   const rejectedSets = useRejection(link);
   const dealing = useDealAnimation(view);
-
   const [sortMode, setSortMode] = useState<SortMode>("runs");
 
-  // Mientras el servidor no conteste, los botones no admiten otro toque: pulsar
-  // dos veces «robar» mandaba dos jugadas, y la segunda volvía como un error
-  // que no había cometido nadie.
+  // Mientras el servidor no conteste, los botones no admiten otro toque. Si el
+  // mensaje ni siquiera salió, no se bloquea nada: quedarse con el botón muerto
+  // es peor que dejar reintentar.
   const [waiting, setWaiting] = useState(false);
   useEffect(() => {
     setWaiting(false);
   }, [view, link.refusal]);
+  const attempt = useCallback((send: () => boolean) => {
+    if (send()) setWaiting(true);
+  }, []);
+
+  useLivePreview(view, isMyTurn, table.board, link);
 
   if (view.status === "lobby") {
     return (
@@ -156,7 +168,6 @@ function Seated({
       </>
     );
   }
-
   if (view.status === "finished") {
     return (
       <>
@@ -166,32 +177,50 @@ function Seated({
     );
   }
 
+  // Mientras otro monta su jugada se ve su mesa en vivo; la tuya solo la tocas tú.
+  const showing = !isMyTurn && link.preview ? link.preview.board : table.board;
+  const moverName = link.preview
+    ? (view.players.find((player) => player.id === link.preview?.playerId)?.name ?? null)
+    : null;
+
+  const needsOpening = !view.players.find((player) => player.id === view.you)?.hasMelded;
+  const openingShort =
+    needsOpening && table.touched && table.opening < view.rules.openingPoints;
   const canConfirm =
-    isMyTurn && !waiting && table.touched && table.broken.length === 0;
+    isMyTurn && !waiting && table.touched && table.broken.length === 0 && !openingShort;
 
   return (
     <div className="room">
       <div className="bar">
-        <button type="button" className="press press--ghost" onClick={onLeave}>
-          ← Salir
+        <button
+          type="button"
+          className="press press--ghost"
+          onClick={onLeave}
+          aria-label="Salir de la mesa"
+        >
+          <ArrowLeft size={17} aria-hidden />
         </button>
         <CodeChip code={view.code} />
+        <Seats
+          view={view}
+          secondsLeft={secondsLeft}
+          movingId={link.preview?.playerId ?? null}
+        />
         <span className="bar__spacer" />
-        <span className="bar__pool">
-          <strong>{view.poolCount}</strong>
-          en el pozo
+        <span className="bar__pool" title="Fichas en el pozo">
+          <Layers size={13} aria-hidden />
+          {view.poolCount}
         </span>
       </div>
 
-      <Seats view={view} secondsLeft={secondsLeft} />
-
       <Felt
-        board={table.board}
+        board={showing}
         grab={grab}
         played={table.played}
-        broken={table.broken}
+        broken={isMyTurn ? table.broken : []}
         rejected={rejectedSets}
         canArrange={isMyTurn}
+        movedBy={isMyTurn ? null : moverName}
       />
 
       <Rack
@@ -207,34 +236,50 @@ function Seated({
         onUndo={table.undo}
         canUndo={table.canUndo}
       >
+        {needsOpening ? (
+          <span
+            className={`opening${
+              table.opening >= view.rules.openingPoints ? " opening--done" : ""
+            }`}
+          >
+            Apertura
+            <strong>
+              {table.opening}/{view.rules.openingPoints}
+            </strong>
+          </span>
+        ) : null}
         <button
           type="button"
           className="press press--quiet"
           disabled={!isMyTurn || waiting}
           onClick={() => {
-            setWaiting(true);
             table.reset();
-            link.send({ type: "draw" });
+            attempt(() => link.send({ type: "draw" }));
           }}
         >
-          Robar y pasar
+          <Hand size={16} aria-hidden />
+          Robar
         </button>
         <button
           type="button"
           className="press press--lamp"
           disabled={!canConfirm}
-          onClick={() => {
-            setWaiting(true);
-            link.send({
-              type: "commit",
-              board: table.board.map((set) => set.slice()),
-              rack: table.rack.slice(),
-            });
-          }}
+          onClick={() =>
+            attempt(() =>
+              link.send({
+                type: "commit",
+                board: table.board.map((set) => set.slice()),
+                rack: table.rack.slice(),
+              }),
+            )
+          }
         >
-          {confirmLabel(isMyTurn, table.touched, table.broken.length)}
+          <Check size={17} aria-hidden />
+          {confirmLabel(isMyTurn, table.touched, table.broken.length, openingShort)}
         </button>
       </Rack>
+
+      <Feed view={view} events={link.events} />
 
       {link.refusal ? (
         <p className="notice" role="alert">
@@ -245,7 +290,9 @@ function Seated({
 
       {grab.dragging && grab.holding ? (
         <div className="flying" ref={grab.flyingRef}>
-          <Tile id={grab.holding.tile} lifted />
+          {grab.holding.tiles.map((id) => (
+            <Tile key={id} id={id} lifted />
+          ))}
         </div>
       ) : null}
 
@@ -255,16 +302,20 @@ function Seated({
 }
 
 /** El botón dice en una línea por qué no se puede confirmar todavía. */
-function confirmLabel(isMyTurn: boolean, touched: boolean, broken: number): string {
-  if (!isMyTurn) return "Espera tu turno";
+function confirmLabel(
+  isMyTurn: boolean,
+  touched: boolean,
+  broken: number,
+  openingShort: boolean,
+): string {
+  if (!isMyTurn) return "Espera";
   if (broken > 0) return "Cuadra la mesa";
+  if (openingShort) return "Falta para abrir";
   if (!touched) return "Baja fichas";
-  return "Confirmar jugada";
+  return "Confirmar";
 }
 
 // --- Sala de espera -------------------------------------------------------
-
-const TURN_CHOICES = [30, 60, 90, 120];
 
 function Lobby({
   view,
@@ -277,6 +328,10 @@ function Lobby({
 }) {
   const isHost = view.you === view.hostId;
   const ready = view.players.filter((player) => player.connected).length;
+
+  const change = (patch: Partial<RoomRules>) => {
+    link.send({ type: "settings", rules: { ...view.rules, ...patch } });
+  };
 
   return (
     <main className="card">
@@ -306,34 +361,69 @@ function Lobby({
         ))}
       </ul>
 
-      {isHost ? (
-        <div className="lobby__setting">
-          <label id="tiempo-turno">Tiempo por turno</label>
-          <div
-            className="lobby__choices"
-            role="group"
-            aria-labelledby="tiempo-turno"
-          >
-            {TURN_CHOICES.map((seconds) => (
-              <button
-                key={seconds}
-                type="button"
-                className="lobby__choice"
-                aria-pressed={view.turnSeconds === seconds}
-                onClick={() => link.send({ type: "settings", turnSeconds: seconds })}
-              >
-                {seconds}s
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="card__body">
-          {view.players.find((player) => player.id === view.hostId)?.name ??
-            "Quien creó la mesa"}{" "}
-          reparte cuando estéis todos. Turnos de {view.turnSeconds} segundos.
+      <div className="rules">
+        <p className="eyebrow">
+          <Users size={13} aria-hidden /> Cómo se juega en esta mesa
         </p>
-      )}
+
+        <Setting label="Tiempo por turno">
+          {TURN_SECONDS_CHOICES.map((seconds) => (
+            <Choice
+              key={String(seconds)}
+              on={view.rules.turnSeconds === seconds}
+              disabled={!isHost}
+              onPick={() => change({ turnSeconds: seconds })}
+            >
+              {seconds === null ? "Sin reloj" : `${seconds}s`}
+            </Choice>
+          ))}
+        </Setting>
+
+        <Setting label="Puntos para abrir">
+          {OPENING_CHOICES.map((points) => (
+            <Choice
+              key={points}
+              on={view.rules.openingPoints === points}
+              disabled={!isHost}
+              onPick={() => change({ openingPoints: points })}
+            >
+              {points}
+            </Choice>
+          ))}
+        </Setting>
+
+        <Setting label="Fichas al repartir">
+          {HAND_SIZE_CHOICES.map((size) => (
+            <Choice
+              key={size}
+              on={view.rules.handSize === size}
+              disabled={!isHost}
+              onPick={() => change({ handSize: size })}
+            >
+              {size}
+            </Choice>
+          ))}
+        </Setting>
+
+        <Setting label="Comodín">
+          {JOKER_CHOICES.map((mode) => (
+            <Choice
+              key={mode}
+              on={view.rules.jokers === mode}
+              disabled={!isHost}
+              onPick={() => change({ jokers: mode })}
+            >
+              {mode === "strict" ? "Protegido" : "Libre"}
+            </Choice>
+          ))}
+        </Setting>
+
+        <p className="rules__note">
+          {view.rules.jokers === "strict"
+            ? "Regla oficial: una combinación con comodín no se rompe; para recuperarlo hay que sustituirlo por la ficha exacta que representa."
+            : "El comodín se mueve como cualquier otra ficha al recolocar la mesa."}
+        </p>
+      </div>
 
       {isHost ? (
         <button
@@ -346,7 +436,13 @@ function Lobby({
             ? `Faltan jugadores (${ready} de ${MIN_PLAYERS})`
             : `Repartir a ${ready}`}
         </button>
-      ) : null}
+      ) : (
+        <p className="card__body">
+          {view.players.find((player) => player.id === view.hostId)?.name ??
+            "Quien creó la mesa"}{" "}
+          reparte cuando estéis todos.
+        </p>
+      )}
 
       <p className="home__foot">
         Caben hasta {MAX_PLAYERS}. A partir de cinco se juega con el mazo grande,
@@ -354,9 +450,44 @@ function Lobby({
       </p>
 
       <button type="button" className="press press--ghost" onClick={onLeave}>
-        ← Salir de la mesa
+        <ArrowLeft size={15} aria-hidden /> Salir de la mesa
       </button>
     </main>
+  );
+}
+
+function Setting({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rules__row">
+      <span className="rules__label">{label}</span>
+      <div className="segmented" role="group" aria-label={label}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Choice({
+  on,
+  disabled,
+  onPick,
+  children,
+}: {
+  on: boolean;
+  disabled: boolean;
+  onPick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="segmented__choice"
+      aria-pressed={on}
+      disabled={disabled}
+      onClick={onPick}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -383,6 +514,7 @@ function ShareBox({ code }: { code: string }) {
       <p className="eyebrow">Código de la mesa</p>
       <p className="lobby__code">{code}</p>
       <button type="button" className="press press--quiet" onClick={share}>
+        {copied ? <Check size={16} aria-hidden /> : <Share2 size={16} aria-hidden />}
         {copied ? "Enlace copiado" : "Compartir enlace"}
       </button>
     </div>
@@ -445,7 +577,7 @@ function Result({
       )}
 
       <button type="button" className="press press--ghost" onClick={onLeave}>
-        ← Salir de la mesa
+        <ArrowLeft size={15} aria-hidden /> Salir de la mesa
       </button>
     </main>
   );
@@ -473,6 +605,7 @@ function CodeChip({ code }: { code: string }) {
     <button
       type="button"
       className="bar__code"
+      title="Copiar el enlace de la mesa"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(`${window.location.origin}/g/${code}`);
@@ -483,7 +616,7 @@ function CodeChip({ code }: { code: string }) {
         }
       }}
     >
-      <small>{copied ? "copiado" : "mesa"}</small>
+      {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
       {code}
     </button>
   );
@@ -497,6 +630,35 @@ function LinkNote({ link }: { link: Link }) {
       {link.link === "connecting" ? "Conectando…" : "Reconectando…"}
     </p>
   );
+}
+
+/**
+ * Cuenta a los demás la mesa que estás montando, como mucho tres veces por
+ * segundo. Sin ese freno cada ficha movida sería un mensaje, y una partida
+ * pasaría de seiscientas peticiones a veinte mil.
+ */
+function useLivePreview(
+  view: GameView,
+  isMyTurn: boolean,
+  board: readonly (readonly string[])[],
+  link: Link,
+): void {
+  const lastSent = useRef("");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isMyTurn || view.status !== "playing") return;
+    const shape = JSON.stringify(board);
+    if (shape === lastSent.current) return;
+
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      lastSent.current = shape;
+      link.send({ type: "preview", board: board.map((set) => [...set]) });
+    }, PREVIEW_EVERY_MS);
+
+    return () => clearTimeout(timer.current);
+  }, [board, isMyTurn, view.status, link]);
 }
 
 /** Segundos que quedan del turno, medidos con el reloj del servidor. */

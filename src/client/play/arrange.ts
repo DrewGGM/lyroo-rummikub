@@ -7,8 +7,7 @@
  */
 
 import { readSet } from "../../engine/sets";
-import { parseTile } from "../../engine/tiles";
-import { COLORS, type Board, type TileId } from "../../engine/types";
+import { MIN_SET_SIZE, type Board, type TileId } from "../../engine/types";
 
 export type Slot =
   | { readonly kind: "rack"; readonly index: number }
@@ -82,6 +81,100 @@ function clamp(index: number, max: number): number {
   return Math.max(0, Math.min(index, max));
 }
 
+/**
+ * Mueve varias fichas de golpe conservando su orden.
+ *
+ * El destino se apunta a la ficha que hay en esa posición, no al número: al
+ * sacar las fichas de en medio los índices se corren, y seguir un número
+ * dejaría el grupo en otro sitio del que señalaste.
+ */
+export function moveTiles(
+  layout: Layout,
+  tiles: readonly TileId[],
+  to: Slot,
+): Layout {
+  if (tiles.length === 0) return layout;
+  if (tiles.length === 1) {
+    const from = locate(layout, tiles[0]!);
+    return from ? moveTile(layout, from, to) : layout;
+  }
+
+  const moving = new Set(tiles);
+  const anchor = to.kind === "new" ? null : tileAt(layout, to);
+  // Soltar el grupo sobre una de sus propias fichas no significa nada.
+  if (anchor !== null && moving.has(anchor)) return layout;
+
+  const board = layout.board
+    .map((set) => set.filter((id) => !moving.has(id)))
+    .filter((set) => set.length > 0);
+  const rack = layout.rack.filter((id) => !moving.has(id));
+  const trimmed: Layout = { board, rack };
+
+  if (to.kind === "new") {
+    return { board: [...board, tiles.slice()], rack };
+  }
+
+  const landing = anchor === null ? endOf(trimmed, to) : locate(trimmed, anchor);
+  if (!landing || landing.kind === "new") return layout;
+
+  if (landing.kind === "rack") {
+    const next = rack.slice();
+    next.splice(landing.index, 0, ...tiles);
+    return { board, rack: next };
+  }
+
+  const next = board.map((set) => set.slice());
+  const target = next[landing.set];
+  if (!target) return layout;
+  target.splice(landing.index, 0, ...tiles);
+  return { board: next, rack };
+}
+
+/** Dónde está una ficha ahora mismo. */
+export function locate(layout: Layout, tile: TileId): Slot | null {
+  const inRack = layout.rack.indexOf(tile);
+  if (inRack >= 0) return { kind: "rack", index: inRack };
+  for (const [set, tiles] of layout.board.entries()) {
+    const index = tiles.indexOf(tile);
+    if (index >= 0) return { kind: "set", set, index };
+  }
+  return null;
+}
+
+/** El final de la fila a la que apunta el destino. */
+function endOf(layout: Layout, to: Slot): Slot | null {
+  if (to.kind === "rack") return { kind: "rack", index: layout.rack.length };
+  if (to.kind === "set") {
+    const set = layout.board[to.set];
+    if (!set) return { kind: "new" };
+    return { kind: "set", set: to.set, index: set.length };
+  }
+  return null;
+}
+
+/**
+ * La combinación más larga que se puede formar con las fichas que rodean a la
+ * que has dejado pulsada, sin saltarse ninguna. Es el atajo para bajar una
+ * escalera entera de una vez en lugar de ficha a ficha.
+ */
+export function runAround(rack: readonly TileId[], index: number): TileId[] {
+  if (index < 0 || index >= rack.length) return [];
+  let best: TileId[] = [];
+
+  for (let start = 0; start <= index; start++) {
+    for (let end = rack.length - 1; end >= index; end--) {
+      const span = end - start + 1;
+      if (span < MIN_SET_SIZE || span <= best.length) break;
+      const candidate = rack.slice(start, end + 1);
+      if (readSet(candidate).length > 0) {
+        best = candidate;
+        break;
+      }
+    }
+  }
+  return best;
+}
+
 export function tileAt(layout: Layout, slot: Slot): TileId | null {
   if (slot.kind === "rack") return layout.rack[slot.index] ?? null;
   if (slot.kind === "set") return layout.board[slot.set]?.[slot.index] ?? null;
@@ -95,27 +188,4 @@ export function brokenSets(board: Board): number[] {
     .filter((index) => index >= 0);
 }
 
-export type SortMode = "runs" | "groups";
-
-/**
- * Ordena el atril como lo haría cualquiera antes de mirar la mesa: por
- * escaleras (color y luego número) o por grupos (número y luego color). Es la
- * misma pareja de vistas que ofrece la app de siempre.
- */
-export function sortRack(rack: readonly TileId[], mode: SortMode): TileId[] {
-  const rank = (id: TileId): [number, number, number] => {
-    const tile = parseTile(id);
-    if (!tile || tile.kind === "joker") return [1, 99, 99];
-    const color = COLORS.indexOf(tile.color);
-    return mode === "runs" ? [0, color, tile.value] : [0, tile.value, color];
-  };
-
-  return rack.slice().sort((a, b) => {
-    const left = rank(a);
-    const right = rank(b);
-    for (let i = 0; i < left.length; i++) {
-      if (left[i]! !== right[i]!) return left[i]! - right[i]!;
-    }
-    return a.localeCompare(b);
-  });
-}
+export { sortRack, type SortMode } from "../../engine/order";

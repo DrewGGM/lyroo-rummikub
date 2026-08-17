@@ -12,7 +12,7 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
 } from "../protocol";
-import { clampTurnSeconds, DEFAULT_TURN_SECONDS } from "../engine/game";
+import { sanitizeRules } from "../engine/rules";
 
 export { GameRoom } from "./GameRoom";
 
@@ -50,13 +50,13 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  const turnSeconds = clampTurnSeconds(await readTurnSeconds(request));
+  const rules = sanitizeRules(await readRules(request));
 
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
     const code = generateRoomCode();
     const room = env.GAME_ROOM.get(env.GAME_ROOM.idFromName(code));
-    if (await room.claim(code, turnSeconds)) {
-      return json({ code, turnSeconds }, 201);
+    if (await room.claim(code, rules)) {
+      return json({ code, rules }, 201);
     }
   }
   return json({ error: "No hemos podido crear la sala. Inténtalo otra vez." }, 503);
@@ -97,12 +97,12 @@ async function withinRoomQuota(request: Request, env: Env): Promise<boolean> {
   return success;
 }
 
-async function readTurnSeconds(request: Request): Promise<number> {
+async function readRules(request: Request): Promise<unknown> {
   try {
-    const body = (await request.json()) as { turnSeconds?: unknown };
-    return typeof body.turnSeconds === "number" ? body.turnSeconds : DEFAULT_TURN_SECONDS;
+    const body = (await request.json()) as { rules?: unknown };
+    return body?.rules;
   } catch {
-    return DEFAULT_TURN_SECONDS;
+    return undefined;
   }
 }
 

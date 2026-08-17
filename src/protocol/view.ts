@@ -34,7 +34,7 @@ export function buildView(
       ? (state.players[state.turnIndex]?.id ?? null)
       : null,
     turnEndsAt: state.turnEndsAt,
-    turnSeconds: state.turnSeconds,
+    rules: state.rules,
     board: state.board.map((set) => set.slice()),
     poolCount: state.pool.length,
     winnerId: state.winnerId,

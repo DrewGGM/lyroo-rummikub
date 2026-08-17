@@ -64,8 +64,9 @@
   --radius-tray: 0.6rem;
   --radius-panel: 1rem;
 
-  /* Tamaño de la ficha: manda el ancho de pantalla, con topes cómodos */
-  --tile-w: clamp(2.1rem, 10.5vw, 2.9rem);
+  /* Respaldo. El tapete y el atril lo recalculan según el hueco que tengan:
+     lo decide `fit.ts`, no una media query. */
+  --tile-w: 2.4rem;
   --tile-h: calc(var(--tile-w) * 1.38);
 
   --lift: cubic-bezier(0.22, 1, 0.36, 1);

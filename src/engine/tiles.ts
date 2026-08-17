@@ -28,7 +28,7 @@ export function deckSpecFor(playerCount: number): DeckSpec {
   return { copies: 4, jokers: 6 }; // 214 fichas
 }
 
-/** Fichas que se reparten a cada jugador al empezar. */
+/** Fichas que se reparten a cada jugador al empezar, salvo que la sala diga otra cosa. */
 export const HAND_SIZE = 14;
 
 export const MIN_PLAYERS = 2;
@@ -127,9 +127,13 @@ export type Deal = {
   readonly pool: TileId[];
 };
 
-export function deal(playerCount: number, seed: number): Deal {
+export function deal(
+  playerCount: number,
+  seed: number,
+  handSize: number = HAND_SIZE,
+): Deal {
   const pool = shuffle(buildDeck(playerCount), createRandom(seed));
   const hands: TileId[][] = [];
-  for (let i = 0; i < playerCount; i++) hands.push(pool.splice(0, HAND_SIZE));
+  for (let i = 0; i < playerCount; i++) hands.push(pool.splice(0, handSize));
   return { hands, pool };
 }

@@ -1,0 +1,97 @@
+name: Publicar
+
+# Cada empujón a main pasa por las pruebas y, si todo va bien, se publica solo.
+# Las ramas y los pull requests se comprueban pero no se publican.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  comprobar:
+    name: Pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Motor de reglas y sala
+        run: npm run test:all
+
+      # Los navegadores pesan y no cambian entre ejecuciones: se guardan en
+      # caché junto a la versión de Playwright que los instaló.
+      - name: Caché de navegadores
+        id: navegadores
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar navegador
+        run: npx playwright install --with-deps chromium
+
+      - name: Partida entre dos navegadores
+        run: npm run test:e2e
+
+      - name: Guardar el informe si algo falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-e2e
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  publicar:
+    name: Publicar en Cloudflare
+    needs: comprobar
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: produccion
+      url: https://rummikub.andrewgarcia.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Desplegar
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Comprobación de humo contra lo que se acaba de publicar: si el
+      # despliegue rompiera algo, el fallo sale aquí y no en tu móvil.
+      - name: Comprobar lo publicado
+        run: |
+          sleep 10
+          curl --fail --silent --show-error --output /dev/null \
+            https://rummikub.andrewgarcia.dev/
+          curl --fail --silent --show-error \
+            -X POST -H 'Content-Type: application/json' -d '{}' \
+            https://rummikub.andrewgarcia.dev/api/rooms

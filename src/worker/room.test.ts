@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ClientMessage, ServerMessage } from "../protocol";
 import { isRoomCode } from "../protocol";
+import { sortRack } from "../engine/order";
 
 const ORIGIN = "http://mesa.test";
 
@@ -16,17 +17,17 @@ const ORIGIN = "http://mesa.test";
  * inventa la suya: los tests no se pisan entre ellos.
  */
 let visitor = 0;
-function fromNewAddress(turnSeconds?: number): Request {
+function fromNewAddress(rules?: unknown): Request {
   visitor += 1;
   return new Request(`${ORIGIN}/api/rooms`, {
     method: "POST",
     headers: { "CF-Connecting-IP": `203.0.113.${visitor % 250}` },
-    body: JSON.stringify(turnSeconds === undefined ? {} : { turnSeconds }),
+    body: JSON.stringify(rules === undefined ? {} : { rules }),
   });
 }
 
-async function createRoom(turnSeconds?: number): Promise<string> {
-  const response = await exports.default.fetch(fromNewAddress(turnSeconds));
+async function createRoom(rules?: unknown): Promise<string> {
+  const response = await exports.default.fetch(fromNewAddress(rules));
   expect(response.status).toBe(201);
   const body = (await response.json()) as { code: string };
   return body.code;
@@ -136,16 +137,30 @@ describe("crear y encontrar salas", () => {
     expect(response.status).toBe(404);
   });
 
-  it("guarda el tiempo de turno elegido al crear la sala", async () => {
-    const code = await createRoom(30);
+  it("guarda las reglas elegidas al crear la sala", async () => {
+    const code = await createRoom({ turnSeconds: 30, openingPoints: 50, handSize: 16 });
     const { welcome } = await joinAs(code, "Ana");
-    expect(welcome.view.turnSeconds).toBe(30);
+    expect(welcome.view.rules).toMatchObject({
+      turnSeconds: 30,
+      openingPoints: 50,
+      handSize: 16,
+    });
   });
 
-  it("acota un tiempo de turno absurdo", async () => {
-    const code = await createRoom(99999);
+  it("sustituye por las oficiales cualquier regla inventada", async () => {
+    const code = await createRoom({
+      turnSeconds: 99999,
+      openingPoints: 1,
+      handSize: 40,
+      jokers: "ninguno",
+    });
     const { welcome } = await joinAs(code, "Ana");
-    expect(welcome.view.turnSeconds).toBe(180);
+    expect(welcome.view.rules).toEqual({
+      turnSeconds: 60,
+      openingPoints: 30,
+      handSize: 14,
+      jokers: "strict",
+    });
   });
 
   it("rechaza conectarse a una sala inexistente", async () => {
@@ -250,16 +265,16 @@ describe("entrar en la sala", () => {
 });
 
 describe("partida", () => {
-  async function table(names: string[], turnSeconds = 60) {
-    const code = await createRoom(turnSeconds);
+  async function table(names: string[], rules?: unknown) {
+    const code = await createRoom(rules);
     const seats = [];
     for (const name of names) seats.push(await joinAs(code, name));
     return { code, seats };
   }
 
   /** Monta la mesa, reparte, y devuelve la vista inicial de cada jugador. */
-  async function dealtTable(names: string[], turnSeconds = 60) {
-    const { code, seats } = await table(names, turnSeconds);
+  async function dealtTable(names: string[], rules?: unknown) {
+    const { code, seats } = await table(names, rules);
     seats[0]!.client.send({ type: "start" });
     const views = [];
     for (const seat of seats) views.push((await seat.client.until("state", dealt)).view);
@@ -403,6 +418,24 @@ describe("partida", () => {
     extra.send({ type: "join", name: "Nueve" });
     const denied = await extra.until("denied");
     expect(denied.reason).toBe("full");
+  });
+
+  it("reparte una partida distinta en cada sala", async () => {
+    // Si dos mesas repartieran lo mismo, la partida sería predecible: bastaría
+    // con abrir una sala de prueba para saber qué le va a tocar a cada uno.
+    const manos: string[] = [];
+    for (let intento = 0; intento < 3; intento++) {
+      const { views } = await dealtTable(["Ana", "Beto"]);
+      manos.push(views[0]!.rack.join(","));
+    }
+    expect(new Set(manos).size).toBe(manos.length);
+  });
+
+  it("reparte la mano ya ordenada, sin obligar a colocarla", async () => {
+    const { views } = await dealtTable(["Ana", "Beto"]);
+    const rack = views[0]!.rack;
+    const ordenada = sortRack(rack as string[], "runs");
+    expect(rack).toEqual(ordenada);
   });
 
   it("usa el mazo de 160 fichas a partir de cinco jugadores", async () => {
