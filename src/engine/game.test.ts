@@ -6,7 +6,7 @@ import {
   currentPlayer,
   drawTile,
   prepareRematch,
-  removePlayer,
+  purgeDisconnected,
   sanitizeName,
   setConnected,
   startGame,
@@ -81,18 +81,43 @@ describe("sala", () => {
     if (!late.ok) expect(late.reason).toBe("started");
   });
 
-  it("traspasa el mando si el anfitrión se va del lobby", () => {
+  it("traspasa el mando si el anfitrión se desconecta del lobby", () => {
     const state = lobbyWith(["Ana", "Beto"]);
-    removePlayer(state, "p0");
+    setConnected(state, "p0", false);
     expect(state.hostId).toBe("p1");
   });
 
-  it("conserva el asiento de quien se desconecta en plena partida", () => {
-    const state = playing(["Ana", "Beto"]);
+  it("guarda el asiento de quien se desconecta, para que pueda volver", () => {
+    const state = lobbyWith(["Ana", "Beto"]);
     setConnected(state, "p1", false);
-    removePlayer(state, "p1");
     expect(state.players).toHaveLength(2);
     expect(state.players[1]!.connected).toBe(false);
+  });
+
+  it("libera los asientos vacíos solo cuando la sala se llena", () => {
+    const state = lobbyWith(["a", "b", "c", "d", "e", "f", "g", "h"]);
+    setConnected(state, "p3", false);
+    expect(state.players).toHaveLength(8);
+
+    const ninth = addPlayer(state, "p8", "Nueve");
+    expect(ninth.ok).toBe(true);
+    expect(state.players.map((p) => p.id)).not.toContain("p3");
+  });
+
+  it("no reparte a quien no está conectado", () => {
+    const state = lobbyWith(["Ana", "Beto", "Cris"]);
+    setConnected(state, "p2", false);
+    const started = startGame(state, "p0", 1, NOW);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    expect(started.state.players).toHaveLength(2);
+  });
+
+  it("no toca los asientos con la partida en marcha", () => {
+    const state = playing(["Ana", "Beto"]);
+    setConnected(state, "p1", false);
+    purgeDisconnected(state);
+    expect(state.players).toHaveLength(2);
   });
 });
 

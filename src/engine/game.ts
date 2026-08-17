@@ -100,9 +100,16 @@ function fail(code: RejectionCode, message: string): Failure {
 }
 
 function succeed(state: GameState, ...events: GameEvent[]): Success {
-  state.log = [...state.log, ...events].slice(-60);
+  pushLog(state, ...events);
   return { ok: true, state, events };
 }
+
+/** El registro guarda solo lo reciente: es para la mesa, no es un historial. */
+function pushLog(state: GameState, ...events: GameEvent[]): void {
+  state.log = [...state.log, ...events].slice(-LOG_LIMIT);
+}
+
+const LOG_LIMIT = 60;
 
 // --- Sala ------------------------------------------------------------------
 
@@ -118,6 +125,9 @@ export function addPlayer(
   const name = sanitizeName(rawName);
   if (!name) return { ok: false, reason: "name" };
   if (state.status !== "lobby") return { ok: false, reason: "started" };
+  // Un asiento solo se libera cuando hace falta: así recargar la página te
+  // devuelve tu sitio, pero nadie se queda bloqueando una sala llena.
+  if (state.players.length >= MAX_PLAYERS) purgeDisconnected(state);
   if (state.players.length >= MAX_PLAYERS) return { ok: false, reason: "full" };
 
   const player: Player = {
@@ -130,7 +140,7 @@ export function addPlayer(
   };
   state.players = [...state.players, player];
   if (!state.hostId) state.hostId = playerId;
-  state.log = [...state.log, { type: "joined", playerId }].slice(-60);
+  pushLog(state, { type: "joined", playerId });
   return { ok: true, state, player };
 }
 
@@ -151,12 +161,25 @@ function uniqueName(state: GameState, name: string): string {
   return name;
 }
 
-/** Saca a un jugador de la sala. Solo tiene efecto antes de empezar la partida. */
-export function removePlayer(state: GameState, playerId: string): GameState {
+/**
+ * Libera los asientos del lobby que nadie está ocupando. Se llama justo cuando
+ * el sitio hace falta —sala llena o reparto inminente— y nunca antes.
+ */
+export function purgeDisconnected(state: GameState): GameState {
   if (state.status !== "lobby") return state;
-  state.players = state.players.filter((player) => player.id !== playerId);
-  if (state.hostId === playerId) state.hostId = state.players[0]?.id ?? "";
-  state.log = [...state.log, { type: "left", playerId }].slice(-60);
+  const leaving = state.players.filter((player) => !player.connected);
+  if (leaving.length === 0) return state;
+
+  state.players = state.players.filter((player) => player.connected);
+  for (const player of leaving) pushLog(state, { type: "left", playerId: player.id });
+  return ensureHost(state);
+}
+
+/** El mando pasa a alguien que esté conectado para que la sala no se atasque. */
+export function ensureHost(state: GameState): GameState {
+  const host = state.players.find((player) => player.id === state.hostId);
+  if (host?.connected) return state;
+  state.hostId = state.players.find((player) => player.connected)?.id ?? state.hostId;
   return state;
 }
 
@@ -168,7 +191,7 @@ export function setConnected(
   state.players = state.players.map((player) =>
     player.id === playerId ? { ...player, connected } : player,
   );
-  return state;
+  return state.status === "lobby" ? ensureHost(state) : state;
 }
 
 // --- Partida ---------------------------------------------------------------
@@ -183,6 +206,8 @@ export function startGame(
   if (actorId !== state.hostId) {
     return fail("NOT_HOST", "Solo quien creó la sala puede empezar la partida.");
   }
+  // Quien no esté en la mesa cuando se reparte, no juega esta ronda.
+  purgeDisconnected(state);
   if (state.players.length < MIN_PLAYERS) {
     return fail("NOT_ENOUGH_PLAYERS", `Hacen falta al menos ${MIN_PLAYERS} jugadores.`);
   }
