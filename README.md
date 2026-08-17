@@ -1,5 +1,7 @@
 # Mesa de Rummikub
 
+**[rummikub.andrewgarcia.dev](https://rummikub.andrewgarcia.dev)**
+
 Rummikub multijugador en el navegador, de 2 a 8 jugadores. Creas una mesa,
 compartes el enlace y jugáis. Sin cuentas, sin instalar nada.
 
@@ -121,8 +123,16 @@ npx wrangler login
 npm run deploy
 ```
 
-Queda en `https://lyroo-rummikub.<tu-cuenta>.workers.dev`. Un dominio propio es
-opcional; el subdominio de `workers.dev` no cuesta nada.
+El dominio propio está declarado en `wrangler.jsonc` como custom domain, así que
+el despliegue crea el registro DNS y el certificado por su cuenta. El subdominio
+de `workers.dev` se mantiene activo como respaldo.
+
+Para comprobar que lo publicado funciona, las mismas pruebas de navegador se
+pueden lanzar contra el despliegue:
+
+```bash
+MESA_URL=https://rummikub.andrewgarcia.dev npm run test:e2e
+```
 
 ## Mapa del código
 
