@@ -140,6 +140,14 @@ function Seated({
 
   const [sortMode, setSortMode] = useState<SortMode>("runs");
 
+  // Mientras el servidor no conteste, los botones no admiten otro toque: pulsar
+  // dos veces «robar» mandaba dos jugadas, y la segunda volvía como un error
+  // que no había cometido nadie.
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    setWaiting(false);
+  }, [view, link.refusal]);
+
   if (view.status === "lobby") {
     return (
       <>
@@ -158,7 +166,8 @@ function Seated({
     );
   }
 
-  const canConfirm = isMyTurn && table.touched && table.broken.length === 0;
+  const canConfirm =
+    isMyTurn && !waiting && table.touched && table.broken.length === 0;
 
   return (
     <div className="room">
@@ -201,8 +210,9 @@ function Seated({
         <button
           type="button"
           className="press press--quiet"
-          disabled={!isMyTurn}
+          disabled={!isMyTurn || waiting}
           onClick={() => {
+            setWaiting(true);
             table.reset();
             link.send({ type: "draw" });
           }}
@@ -214,6 +224,7 @@ function Seated({
           className="press press--lamp"
           disabled={!canConfirm}
           onClick={() => {
+            setWaiting(true);
             link.send({
               type: "commit",
               board: table.board.map((set) => set.slice()),
@@ -400,6 +411,7 @@ function Result({
       <h1 className="card__title">
         {youWon ? "Has ganado" : `Gana ${winner?.name ?? "nadie"}`}
       </h1>
+      <p className="card__body">{endingStory(winner, youWon)}</p>
 
       <ul className="score">
         {ranking.map((player) => (
@@ -437,6 +449,20 @@ function Result({
       </button>
     </main>
   );
+}
+
+/** Por qué se ha acabado la partida, contado como se contaría en una mesa. */
+function endingStory(
+  winner: GameView["players"][number] | undefined,
+  youWon: boolean,
+): string {
+  if (!winner) return "La partida se ha quedado sin ganador.";
+  if (winner.tileCount > 0) {
+    return "Se acabó el pozo y ya nadie podía jugar, así que gana quien menos puntos tenía en el atril.";
+  }
+  return youWon
+    ? "Te has quedado sin fichas. Los puntos que les sobran a los demás son tuyos."
+    : `${winner.name} se ha quedado sin fichas. Lo que te sobraba en el atril te lo descuenta.`;
 }
 
 // --- Piezas sueltas -------------------------------------------------------

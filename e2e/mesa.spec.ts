@@ -282,3 +282,62 @@ function combinations<T>(items: readonly T[], size: number): T[][] {
     ...combinations(rest, size),
   ];
 }
+
+test.describe("final de partida", () => {
+  test("se agota el pozo, todos pasan y gana quien menos puntos tiene", async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+
+    const host = await browser.newContext();
+    const hostPage = await host.newPage();
+    const code = await createRoom(hostPage);
+    await hostPage.getByPlaceholder("Tu nombre").fill("Ana");
+    await hostPage.getByRole("button", { name: "Sentarme a la mesa" }).click();
+    const guest = await seatPlayer(browser, `/g/${code}`, "Beto");
+    await hostPage.getByRole("button", { name: "Repartir a 2" }).click();
+    await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
+
+    // Nadie juega nada: se roba hasta vaciar el pozo y después se pasa. Son
+    // 78 robos y dos pases con dos jugadores.
+    // Entre una jugada y la siguiente hay un instante en que ningún botón está
+    // activo, mientras la respuesta del servidor está en camino. El bucle se
+    // mide por tiempo, no por vueltas.
+    const pages = [hostPage, guest.page];
+    const deadline = Date.now() + 120_000;
+    let draws = 0;
+    while (Date.now() < deadline) {
+      if (await hostPage.locator(".score").count()) break;
+      const playing = await Promise.all(
+        pages.map((page) => page.getByRole("button", { name: "Robar y pasar" }).isEnabled()),
+      );
+      const index = playing.indexOf(true);
+      if (index < 0) {
+        await hostPage.waitForTimeout(50);
+        continue;
+      }
+      await pages[index]!.getByRole("button", { name: "Robar y pasar" }).click();
+      draws += 1;
+    }
+    // 78 robos para vaciar el pozo y dos pases para cerrar la partida.
+    expect(draws).toBe(80);
+
+    await expect(hostPage.locator(".score__row")).toHaveCount(2);
+    await expect(hostPage.getByText("Se acabó el pozo")).toBeVisible();
+
+    // La puntuación es simétrica: lo que gana uno lo pierde el otro.
+    const points = await hostPage
+      .locator(".score__points")
+      .evaluateAll((nodes) => nodes.map((node) => Number(node.textContent!.replace("+", ""))));
+    expect(points[0]! + points[1]!).toBe(0);
+    expect(points[0]!).toBeGreaterThan(0);
+
+    // Y la revancha devuelve a la sala con la puntuación intacta.
+    await hostPage.getByRole("button", { name: "Otra ronda" }).click();
+    await expect(hostPage.locator(".lobby__code")).toHaveText(code);
+    await expect(hostPage.locator(".lobby__list li")).toHaveCount(2);
+
+    await host.close();
+    await guest.context.close();
+  });
+});

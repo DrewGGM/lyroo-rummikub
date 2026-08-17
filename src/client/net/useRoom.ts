@@ -4,6 +4,11 @@
  * Mantiene un WebSocket vivo, vuelve a conectarse sola cuando se cae, y expone
  * la última vista recibida. Perder la cobertura un momento no debe costarte la
  * partida: al volver, la credencial del asiento recupera tu sitio y tus fichas.
+ *
+ * Cada conexión lleva su propio temporizador y solo la vigente puede pedir una
+ * reconexión o cambiar el estado. Sin eso, un socket que ya no vale seguía
+ * pidiendo reconectar —y el servidor cerrando el anterior— en un bucle que
+ * acababa entregando estados atrasados y descuadrando la mesa.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -42,6 +47,7 @@ export type Room = {
 
 const RETRY_STEPS_MS = [400, 900, 2000, 4000, 8000];
 const PING_EVERY_MS = 25_000;
+const PING = JSON.stringify({ type: "ping" });
 
 export function useRoom(code: string | null, name: string | null): Room {
   const [link, setLink] = useState<Link>("connecting");
@@ -52,26 +58,43 @@ export function useRoom(code: string | null, name: string | null): Room {
   const [clockSkew, setClockSkew] = useState(0);
 
   const socketRef = useRef<WebSocket | null>(null);
-  const attemptRef = useRef(0);
-  const closedByUs = useRef(false);
 
   useEffect(() => {
     if (!code || !name) return;
 
-    closedByUs.current = false;
+    // Estado propio de esta sesión. Nada de refs compartidas: en desarrollo el
+    // efecto se monta dos veces, y una ref compartida hace que la primera
+    // conexión crea seguir viva.
+    let live: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    let pingTimer: ReturnType<typeof setInterval> | undefined;
+    let attempt = 0;
+    let finished = false;
+
+    const stop = () => {
+      finished = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
 
     const open = () => {
+      if (finished) return;
+
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const socket = new WebSocket(
         `${protocol}//${window.location.host}/ws/room/${code}`,
       );
+      live = socket;
       socketRef.current = socket;
-      setLink(attemptRef.current === 0 ? "connecting" : "retrying");
+      setLink(attempt === 0 ? "connecting" : "retrying");
+
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
+      const isCurrent = () => !finished && live === socket;
 
       socket.addEventListener("open", () => {
-        attemptRef.current = 0;
+        if (!isCurrent()) {
+          socket.close();
+          return;
+        }
+        attempt = 0;
         setLink("open");
         const token = seatToken(code);
         socket.send(
@@ -81,10 +104,8 @@ export function useRoom(code: string | null, name: string | null): Room {
               : ({ type: "join", name } satisfies ClientMessage),
           ),
         );
-        pingTimer = setInterval(() => {
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "ping" }));
-          }
+        heartbeat = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) socket.send(PING);
         }, PING_EVERY_MS);
       });
 
@@ -95,6 +116,9 @@ export function useRoom(code: string | null, name: string | null): Room {
         } catch {
           return;
         }
+        // Un socket que ya no es el vigente puede entregar mensajes tardíos:
+        // aceptarlos retrasaría la mesa a un estado anterior.
+        if (!isCurrent()) return;
 
         switch (message.type) {
           case "welcome":
@@ -118,23 +142,20 @@ export function useRoom(code: string | null, name: string | null): Room {
             break;
           case "denied":
             setDenial({ reason: message.reason, message: message.message });
-            closedByUs.current = true;
+            stop();
             socket.close();
+            setLink("closed");
             break;
         }
       });
 
       socket.addEventListener("close", () => {
-        if (pingTimer) clearInterval(pingTimer);
+        if (heartbeat) clearInterval(heartbeat);
+        if (!isCurrent()) return;
         socketRef.current = null;
-        if (closedByUs.current) {
-          setLink("closed");
-          return;
-        }
         setLink("retrying");
-        const wait =
-          RETRY_STEPS_MS[Math.min(attemptRef.current, RETRY_STEPS_MS.length - 1)]!;
-        attemptRef.current += 1;
+        const wait = RETRY_STEPS_MS[Math.min(attempt, RETRY_STEPS_MS.length - 1)]!;
+        attempt += 1;
         retryTimer = setTimeout(open, wait);
       });
     };
@@ -142,11 +163,11 @@ export function useRoom(code: string | null, name: string | null): Room {
     open();
 
     return () => {
-      closedByUs.current = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      if (pingTimer) clearInterval(pingTimer);
-      socketRef.current?.close();
+      stop();
+      const closing = live;
+      live = null;
       socketRef.current = null;
+      closing?.close();
     };
   }, [code, name]);
 

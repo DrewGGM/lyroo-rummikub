@@ -139,6 +139,13 @@
   color: var(--chalk-soft);
 }
 
+/* La acción principal ocupa el ancho de la tarjeta, como las filas que tiene
+   encima. Un botón suelto a la izquierda no se lee como «esto es lo que hay
+   que pulsar». */
+.card > .press:not(.press--ghost) {
+  width: 100%;
+}
+
 .lobby__share {
   display: grid;
   gap: var(--gap-2);
