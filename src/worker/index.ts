@@ -43,6 +43,13 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function createRoom(request: Request, env: Env): Promise<Response> {
+  if (!(await withinRoomQuota(request, env))) {
+    return json(
+      { error: "Estás creando mesas muy deprisa. Espera un momento." },
+      429,
+    );
+  }
+
   const turnSeconds = clampTurnSeconds(await readTurnSeconds(request));
 
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
@@ -75,6 +82,19 @@ function openSocket(request: Request, rawCode: string, env: Env): Promise<Respon
 
   const room = env.GAME_ROOM.get(env.GAME_ROOM.idFromName(code));
   return room.fetch(request);
+}
+
+/**
+ * Crear salas es lo único que cuesta dinero sin que nadie juegue: cada una
+ * arranca un Durable Object. Se limita por dirección de origen para que un
+ * script no agote el presupuesto diario de todos.
+ */
+async function withinRoomQuota(request: Request, env: Env): Promise<boolean> {
+  const limiter = env.ROOM_LIMIT;
+  if (!limiter) return true;
+  const origin = request.headers.get("CF-Connecting-IP") ?? "desconocido";
+  const { success } = await limiter.limit({ key: origin });
+  return success;
 }
 
 async function readTurnSeconds(request: Request): Promise<number> {

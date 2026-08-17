@@ -11,5 +11,16 @@
   "durable_objects": {
     "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
   },
+  // Cada sala nueva arranca un Durable Object, y el plan gratuito da 100.000
+  // peticiones al día: un script podría agotarlo en minutos. Crear salas se
+  // limita por dirección de origen. Treinta por minuto es un número que nadie
+  // alcanza montando partidas y que corta en seco cualquier bucle.
+  "ratelimits": [
+    {
+      "name": "ROOM_LIMIT",
+      "namespace_id": "1001",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
 }

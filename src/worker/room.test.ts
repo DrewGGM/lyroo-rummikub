@@ -11,13 +11,22 @@ import { isRoomCode } from "../protocol";
 
 const ORIGIN = "http://mesa.test";
 
+/**
+ * Crear salas está limitado por dirección de origen, así que cada llamada
+ * inventa la suya: los tests no se pisan entre ellos.
+ */
+let visitor = 0;
+function fromNewAddress(turnSeconds?: number): Request {
+  visitor += 1;
+  return new Request(`${ORIGIN}/api/rooms`, {
+    method: "POST",
+    headers: { "CF-Connecting-IP": `203.0.113.${visitor % 250}` },
+    body: JSON.stringify(turnSeconds === undefined ? {} : { turnSeconds }),
+  });
+}
+
 async function createRoom(turnSeconds?: number): Promise<string> {
-  const response = await exports.default.fetch(
-    new Request(`${ORIGIN}/api/rooms`, {
-      method: "POST",
-      body: JSON.stringify(turnSeconds === undefined ? {} : { turnSeconds }),
-    }),
-  );
+  const response = await exports.default.fetch(fromNewAddress(turnSeconds));
   expect(response.status).toBe(201);
   const body = (await response.json()) as { code: string };
   return body.code;
@@ -150,6 +159,36 @@ describe("crear y encontrar salas", () => {
     const code = await createRoom();
     const response = await exports.default.fetch(`${ORIGIN}/ws/room/${code}`);
     expect(response.status).toBe(426);
+  });
+});
+
+describe("límite de creación", () => {
+  it("corta a quien abre salas en cadena desde la misma dirección", async () => {
+    const address = "198.51.100.7";
+    const create = () =>
+      exports.default.fetch(
+        new Request(`${ORIGIN}/api/rooms`, {
+          method: "POST",
+          headers: { "CF-Connecting-IP": address },
+          body: "{}",
+        }),
+      );
+
+    let blocked = false;
+    for (let attempt = 0; attempt < 40 && !blocked; attempt++) {
+      blocked = (await create()).status === 429;
+    }
+    expect(blocked).toBe(true);
+
+    // Y no afecta a quien llega desde otro sitio.
+    const otherPerson = await exports.default.fetch(
+      new Request(`${ORIGIN}/api/rooms`, {
+        method: "POST",
+        headers: { "CF-Connecting-IP": "198.51.100.8" },
+        body: "{}",
+      }),
+    );
+    expect(otherPerson.status).toBe(201);
   });
 });
 

@@ -199,7 +199,7 @@ test.describe("turno", () => {
   test("una apertura válida llega a la mesa del otro jugador", async ({ browser }) => {
     // El reparto es aleatorio, así que se abren mesas hasta dar con una mano
     // que pueda abrir con 30 puntos. Es lo que haría cualquiera en la vida real.
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       const host = await browser.newContext();
       const hostPage = await host.newPage();
       const code = await createRoom(hostPage);
@@ -241,7 +241,7 @@ test.describe("turno", () => {
       await guest.context.close();
       return;
     }
-    throw new Error("no salió ninguna mano capaz de abrir en 12 repartos");
+    throw new Error("no salió ninguna mano capaz de abrir en 10 repartos");
   });
 });
 
