@@ -1,0 +1,305 @@
+/**
+ * La portada.
+ *
+ * Lo primero que se ve son fichas de verdad —las mismas del juego— formando la
+ * apertura mínima de 30 puntos. Explica la regla que más desconcierta a quien
+ * empieza y, de paso, enseña exactamente cómo se va a ver la partida.
+ */
+
+.home {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--gap-4);
+  min-height: 100dvh;
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: var(--gap-6) var(--gap-5) calc(var(--gap-6) + env(safe-area-inset-bottom));
+}
+
+.home__title {
+  font-family: var(--face-display);
+  font-size: var(--step-xxl);
+  font-weight: 700;
+  font-variation-settings: "wdth" 92;
+  line-height: 0.94;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.home__title em {
+  display: block;
+  font-style: normal;
+  color: var(--lamp);
+}
+
+.home__meld {
+  display: grid;
+  gap: var(--gap-2);
+  justify-items: start;
+  margin: var(--gap-2) 0 var(--gap-1);
+}
+
+.home__tiles {
+  display: flex;
+  gap: 3px;
+  padding: 0.5rem;
+  border-radius: var(--radius-tray);
+  background: rgb(0 0 0 / 0.22);
+  box-shadow: inset 0 0 0 1px rgb(245 185 66 / 0.35);
+}
+
+.home__caption {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+.home__caption b {
+  font-size: var(--step-m);
+  color: var(--lamp);
+  letter-spacing: 0;
+}
+
+.home__lead {
+  max-width: 34ch;
+  color: var(--chalk-soft);
+}
+
+.home__actions {
+  display: grid;
+  gap: var(--gap-3);
+  width: 100%;
+  margin-top: var(--gap-2);
+}
+
+.home__join {
+  display: grid;
+  gap: var(--gap-2);
+  width: 100%;
+  padding-top: var(--gap-4);
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.home__join-row {
+  display: flex;
+  gap: var(--gap-2);
+}
+
+.home__code {
+  flex: 1;
+  font-family: var(--face-data);
+  font-size: var(--step-l);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.home__error {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  font-size: var(--step-s);
+  color: #f0a79d;
+}
+
+.home__foot {
+  margin-top: var(--gap-4);
+  font-size: var(--step-xs);
+  color: var(--chalk-dim);
+}
+
+/* --- Pantallas de sala: espera, resultado y avisos ---------------------- */
+
+.card {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--gap-4);
+  min-height: 100dvh;
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: var(--gap-6) var(--gap-5);
+}
+
+.card__title {
+  font-family: var(--face-display);
+  font-size: var(--step-xl);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.card__body {
+  max-width: 38ch;
+  color: var(--chalk-soft);
+}
+
+.lobby__share {
+  display: grid;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: var(--gap-4);
+  border-radius: var(--radius-panel);
+  background: rgb(0 0 0 / 0.25);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.lobby__code {
+  font-family: var(--face-data);
+  font-size: clamp(2rem, 12vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--lamp);
+  line-height: 1;
+}
+
+.lobby__list {
+  display: grid;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.lobby__player {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+.lobby__player--away {
+  opacity: 0.45;
+}
+
+.lobby__pip {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-glow);
+}
+
+.lobby__player--away .lobby__pip {
+  background: var(--chalk-dim);
+  box-shadow: none;
+}
+
+.lobby__role {
+  margin-left: auto;
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+.lobby__setting {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  width: 100%;
+}
+
+.lobby__setting label {
+  font-size: var(--step-s);
+  color: var(--chalk-soft);
+}
+
+.lobby__choices {
+  display: flex;
+  gap: var(--gap-1);
+  margin-left: auto;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+}
+
+.lobby__choice {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  color: var(--chalk-dim);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.lobby__choice[aria-pressed="true"] {
+  background: var(--lamp);
+  color: #2b1c00;
+}
+
+/* --- Resultado ---------------------------------------------------------- */
+
+.score {
+  display: grid;
+  gap: var(--gap-2);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.score__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-3);
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 0.05);
+}
+
+.score__row--won {
+  background: var(--lamp-glow);
+  box-shadow: inset 0 0 0 1px rgb(245 185 66 / 0.45);
+}
+
+.score__points {
+  margin-left: auto;
+  font-family: var(--face-data);
+  font-size: var(--step-l);
+  font-weight: 700;
+}
+
+.score__row--won .score__points {
+  color: var(--lamp);
+}
+
+/* --- Estado de la conexión ---------------------------------------------- */
+
+.link-note {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 0.5rem);
+  left: 50%;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: #2a1c05;
+  box-shadow: inset 0 0 0 1px rgb(245 185 66 / 0.4);
+  font-size: var(--step-xs);
+  transform: translateX(-50%);
+}
+
+.link-note__pulse {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--lamp);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.25; }
+}

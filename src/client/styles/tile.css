@@ -1,0 +1,147 @@
+/**
+ * La ficha.
+ *
+ * Es lo único que se toca en todo el juego, así que es lo único que tiene
+ * volumen: canto de pasta, bisel iluminado desde arriba y sombra propia sobre
+ * el tapete. Al cogerla se levanta y se inclina; al soltarla, asienta.
+ */
+
+.tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--tile-w);
+  height: var(--tile-h);
+  flex: 0 0 auto;
+  border-radius: var(--radius-tile);
+  background: linear-gradient(168deg, #fdf9f1 0%, var(--bone) 45%, var(--bone-edge) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 1px 0 0 rgb(255 255 255 / 0.5),
+    inset -1px 0 0 rgb(0 0 0 / 0.06),
+    /* el canto de pasta */ 0 2px 0 var(--bone-deep),
+    0 3px 2px rgb(0 0 0 / 0.22),
+    /* la sombra sobre el tapete */ 0 7px 12px -6px rgb(0 0 0 / 0.6);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  transition:
+    transform 180ms var(--settle),
+    box-shadow 180ms var(--lift),
+    opacity 140ms ease;
+}
+
+.tile__value {
+  font-family: var(--face-ui);
+  font-size: calc(var(--tile-w) * 0.6);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--tile-ink);
+  /* La tinta está impresa en la pasta, no flotando sobre ella. */
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.6);
+  transform: translateY(calc(var(--tile-w) * -0.07));
+}
+
+/* La marca de referencia que llevan las fichas reales bajo el número. */
+.tile__mark {
+  position: absolute;
+  bottom: calc(var(--tile-w) * 0.13);
+  width: calc(var(--tile-w) * 0.13);
+  height: calc(var(--tile-w) * 0.13);
+  border-radius: 50%;
+  background: var(--tile-ink);
+  opacity: 0.5;
+}
+
+.tile__joker {
+  width: calc(var(--tile-w) * 0.62);
+  height: calc(var(--tile-w) * 0.62);
+  color: var(--tile-ink);
+}
+
+.tile[data-color="r"] { --tile-ink: var(--ink-r); }
+.tile[data-color="b"] { --tile-ink: var(--ink-b); }
+.tile[data-color="k"] { --tile-ink: var(--ink-k); }
+.tile[data-color="o"] { --tile-ink: var(--ink-o); }
+.tile[data-color="j"] { --tile-ink: var(--ink-r); }
+
+/* --- Estados ------------------------------------------------------------ */
+
+/* Cogida: se levanta del tapete y se ladea, como en la mano. */
+.tile--lifted {
+  z-index: 60;
+  transform: scale(1.12) rotate(-3deg);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 2px 0 var(--bone-deep),
+    0 18px 28px -8px rgb(0 0 0 / 0.7);
+  transition: none;
+}
+
+/* El hueco que deja la ficha mientras está en el aire. */
+.tile--hollow {
+  opacity: 0.22;
+  filter: saturate(0.2);
+}
+
+/* Elegida con un toque, esperando destino. */
+.tile--picked {
+  transform: translateY(-14%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 2px 0 var(--bone-deep),
+    0 10px 18px -6px rgb(0 0 0 / 0.65),
+    0 0 0 2px var(--lamp);
+}
+
+/* Fichas que has bajado en este turno y aún puedes recuperar. */
+.tile--fresh::after {
+  content: "";
+  position: absolute;
+  inset: auto 18% calc(var(--tile-w) * 0.05) 18%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lamp);
+  opacity: 0.85;
+}
+
+.tile--dealing {
+  animation: deal 460ms var(--settle) backwards;
+  animation-delay: calc(var(--deal-index, 0) * 45ms);
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--deal-from-x, 0) * 1px), -140px) rotate(-14deg) scale(0.8);
+  }
+}
+
+/* La ficha que acaba de aparecer en la mesa por mano de otro jugador. */
+.tile--arriving {
+  animation: arrive 420ms var(--settle) backwards;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-22px) scale(1.1);
+  }
+}
+
+/* --- El comodín --------------------------------------------------------- */
+
+.joker-face {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.joker-face circle.joker-face__eye {
+  fill: currentColor;
+  stroke: none;
+}

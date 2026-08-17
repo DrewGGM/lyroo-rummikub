@@ -1,0 +1,394 @@
+/**
+ * La mesa: barra de sala, jugadores, tapete con las combinaciones, atril.
+ *
+ * El reparto vertical es el de la mesa real vista desde tu silla: los demás
+ * arriba, el juego en medio, tus fichas al alcance de la mano.
+ */
+
+.room {
+  display: grid;
+  /* La columna se acota a la pantalla. Sin esto, un atril de catorce fichas
+     ensancharía la rejilla y empujaría la mesa fuera de la vista. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: 100dvh;
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.room > * {
+  min-width: 0;
+}
+
+/* --- Barra superior ----------------------------------------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  padding: max(env(safe-area-inset-top), 0.5rem) var(--gap-4) var(--gap-2);
+}
+
+.bar__code {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 0.25);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  font-family: var(--face-data);
+  font-size: var(--step-s);
+  letter-spacing: 0.16em;
+  transition: background-color 160ms ease;
+}
+
+.bar__code:hover {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.bar__code small {
+  font-size: var(--step-xs);
+  letter-spacing: 0.18em;
+  color: var(--chalk-dim);
+}
+
+.bar__spacer {
+  flex: 1;
+}
+
+.bar__pool {
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  letter-spacing: 0.1em;
+  color: var(--chalk-dim);
+  text-align: right;
+}
+
+.bar__pool strong {
+  display: block;
+  font-size: var(--step-m);
+  color: var(--chalk-soft);
+}
+
+/* --- Jugadores ---------------------------------------------------------- */
+
+.seats {
+  display: flex;
+  min-width: 0;
+  gap: var(--gap-2);
+  padding: 0 var(--gap-4) var(--gap-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.seats::-webkit-scrollbar {
+  display: none;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  padding: 0.35rem 0.7rem 0.35rem 0.35rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  transition:
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.seat--turn {
+  background: var(--lamp-glow);
+  box-shadow: inset 0 0 0 1px rgb(245 185 66 / 0.55);
+}
+
+.seat--away {
+  opacity: 0.45;
+}
+
+.seat__clock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+}
+
+.seat__initial {
+  font-size: var(--step-s);
+  font-weight: 700;
+  color: var(--chalk);
+}
+
+.seat__ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.seat__ring circle {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.seat__ring .seat__ring-track {
+  stroke: rgb(255 255 255 / 0.12);
+}
+
+.seat__ring .seat__ring-left {
+  stroke: var(--lamp);
+  transition: stroke-dashoffset 1s linear, stroke 300ms ease;
+}
+
+.seat__ring--urgent .seat__ring-left {
+  stroke: var(--alarm);
+}
+
+.seat__name {
+  font-size: var(--step-s);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.seat__count {
+  font-family: var(--face-data);
+  font-size: var(--step-xs);
+  color: var(--chalk-dim);
+}
+
+.seat--turn .seat__count {
+  color: var(--lamp);
+}
+
+/* --- Tapete ------------------------------------------------------------- */
+
+.felt {
+  position: relative;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--gap-3) var(--gap-4) var(--gap-5);
+  margin: 0 var(--gap-3);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgb(245 185 66 / 0.07), transparent 70%),
+    var(--felt-800);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    inset 0 0 0 1px rgb(0 0 0 / 0.3),
+    inset 0 22px 40px -30px rgb(0 0 0 / 0.9);
+}
+
+.felt__sets {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--gap-3);
+}
+
+.felt__hint {
+  max-width: 34ch;
+  margin-bottom: var(--gap-3);
+  font-size: var(--step-s);
+  color: var(--chalk-dim);
+  text-wrap: pretty;
+}
+
+/* --- Una combinación ---------------------------------------------------- */
+
+.tray {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  padding: 0.4rem;
+  border-radius: var(--radius-tray);
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
+  transition:
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+
+/* Combinación completa: la lámpara la reconoce. */
+.tray--valid {
+  box-shadow: inset 0 0 0 1px rgb(245 185 66 / 0.45);
+}
+
+.tray--valid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-tray);
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(245 185 66 / 0.3) 50%,
+    transparent 70%
+  );
+  background-size: 280% 100%;
+  animation: seal 700ms var(--lift) 1;
+}
+
+@keyframes seal {
+  from { background-position: 150% 0; opacity: 1; }
+  to { background-position: -80% 0; opacity: 0; }
+}
+
+/* Combinación que no se sostiene: no puedes confirmar así. */
+.tray--broken {
+  background: rgb(227 93 79 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(227 93 79 / 0.65);
+}
+
+.tray--rejected {
+  animation: refuse 420ms ease;
+}
+
+@keyframes refuse {
+  10%, 50%, 90% { transform: translateX(-4px); }
+  30%, 70% { transform: translateX(4px); }
+}
+
+.tray--target {
+  background: var(--lamp-glow);
+  box-shadow: inset 0 0 0 1px var(--lamp);
+}
+
+/* Hueco para empezar una combinación nueva. */
+.tray--new {
+  display: grid;
+  place-items: center;
+  min-width: calc(var(--tile-w) * 2.4);
+  min-height: calc(var(--tile-h) + 0.8rem);
+  border-radius: var(--radius-tray);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.12);
+  color: var(--chalk-dim);
+  font-size: var(--step-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--face-data);
+}
+
+/* --- Atril -------------------------------------------------------------- */
+
+.rack {
+  min-width: 0;
+  padding: var(--gap-3) 0 max(env(safe-area-inset-bottom), var(--gap-3));
+}
+
+.rack__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  padding: 0 var(--gap-4) var(--gap-2);
+}
+
+.rack__tools .eyebrow {
+  white-space: nowrap;
+}
+
+.rack__undo {
+  padding: 0 var(--gap-2);
+  font-size: var(--step-s);
+  white-space: nowrap;
+}
+
+.rack__tools .lobby__choices {
+  margin-left: 0;
+}
+
+.rack__tools .bar__spacer {
+  flex: 1;
+}
+
+.rack__ledge {
+  /* El soporte de Rummikub tiene dos filas, y catorce fichas no caben en una
+     sola en un móvil. Envolver evita tener que desplazar el atril para ver la
+     mano entera. */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  min-width: 0;
+  max-height: calc(var(--tile-h) * 2.35 + 1.5rem);
+  gap: 3px;
+  padding: 0.55rem var(--gap-3) 0.75rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  /* El listón de madera donde apoyas tus fichas. */
+  background: linear-gradient(180deg, var(--felt-700) 0%, var(--felt-900) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 12px 20px -18px rgb(0 0 0 / 0.9);
+}
+
+.rack__ledge--target {
+  box-shadow:
+    inset 0 0 0 1.5px var(--lamp),
+    inset 0 1px 0 rgb(255 255 255 / 0.07);
+}
+
+.rack__actions {
+  display: flex;
+  gap: var(--gap-2);
+  padding: var(--gap-3) var(--gap-4) 0;
+}
+
+.rack__actions .press {
+  flex: 1;
+}
+
+/* --- Aviso de jugada rechazada ------------------------------------------ */
+
+.notice {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 9.5rem);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  max-width: min(30rem, calc(100vw - 2rem));
+  padding: 0.7rem 1rem;
+  border-radius: 0.75rem;
+  background: #21100e;
+  box-shadow:
+    inset 0 0 0 1px rgb(227 93 79 / 0.5),
+    0 16px 30px -14px rgb(0 0 0 / 0.9);
+  font-size: var(--step-s);
+  transform: translateX(-50%);
+  animation: notice-in 260ms var(--settle);
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+.notice__dot {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--alarm);
+}
+
+/* --- La ficha que va en el aire ----------------------------------------- */
+
+.flying {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  will-change: transform;
+}

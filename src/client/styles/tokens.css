@@ -1,0 +1,84 @@
+/**
+ * La mesa de noche.
+ *
+ * El juego es físico: fichas de pasta color hueso sobre un tapete verde
+ * petróleo, bajo una lámpara cálida. Todo el sistema visual sale de ahí. El
+ * interfaz se mantiene oscuro y callado para que las fichas sean lo único que
+ * pesa en pantalla, porque son lo único que se toca.
+ */
+
+:root {
+  /* Tapete */
+  --felt-900: #0b2324;
+  --felt-800: #10302f;
+  --felt-700: #164240;
+  --felt-600: #1e5350;
+  --felt-500: #2a6b66;
+
+  /* Pasta de las fichas */
+  --bone: #f5eee0;
+  --bone-edge: #e7dcc7;
+  --bone-deep: #c0b298;
+
+  /* Tinta impresa en la ficha: los cuatro colores del juego */
+  --ink-r: #c8352c;
+  --ink-b: #17619f;
+  --ink-k: #22262b;
+  --ink-o: #e07b21;
+
+  /* La lámpara: turno activo, foco, confirmación */
+  --lamp: #f5b942;
+  --lamp-warm: #e69a2b;
+  --lamp-glow: rgb(245 185 66 / 0.18);
+
+  /* Aviso */
+  --alarm: #e35d4f;
+
+  /* Texto */
+  --chalk: #e6efec;
+  --chalk-soft: #a9c1bd;
+  --chalk-dim: #7c9a96;
+
+  /* Tipografía */
+  --face-display: "Bricolage Grotesque Variable", "Archivo Variable", system-ui, sans-serif;
+  --face-ui: "Archivo Variable", system-ui, -apple-system, sans-serif;
+  --face-data: "Space Mono", ui-monospace, monospace;
+
+  /* Escala tipográfica: pocos pasos, contrastados */
+  --step-xs: 0.6875rem;
+  --step-s: 0.8125rem;
+  --step-m: 0.9375rem;
+  --step-l: 1.25rem;
+  --step-xl: clamp(2rem, 9vw, 3.25rem);
+  --step-xxl: clamp(2.75rem, 14vw, 5.5rem);
+
+  /* Ritmo */
+  --gap-1: 0.25rem;
+  --gap-2: 0.5rem;
+  --gap-3: 0.75rem;
+  --gap-4: 1rem;
+  --gap-5: 1.5rem;
+  --gap-6: 2.5rem;
+
+  --radius-tile: 0.3rem;
+  --radius-tray: 0.6rem;
+  --radius-panel: 1rem;
+
+  /* Tamaño de la ficha: manda el ancho de pantalla, con topes cómodos */
+  --tile-w: clamp(2.1rem, 10.5vw, 2.9rem);
+  --tile-h: calc(var(--tile-w) * 1.38);
+
+  --lift: cubic-bezier(0.22, 1, 0.36, 1);
+  --settle: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
