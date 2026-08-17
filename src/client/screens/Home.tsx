@@ -24,8 +24,14 @@ export function Home({ onEnter }: HomeProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (!response.ok) throw new Error("no se pudo crear");
-      const room = (await response.json()) as { code: string };
+      const room = (await response.json()) as { code?: string; error?: string };
+      if (!response.ok || !room.code) {
+        // El servidor sabe por qué no puede, y normalmente merece la pena
+        // contarlo: no es lo mismo un fallo pasajero que la cuota del día.
+        setProblem(room.error ?? "No hemos podido crear la mesa. Vuelve a intentarlo.");
+        setBusy(false);
+        return;
+      }
       onEnter(room.code);
     } catch {
       setProblem("No hemos podido crear la mesa. Vuelve a intentarlo.");
@@ -47,7 +53,8 @@ export function Home({ onEnter }: HomeProps) {
       onEnter(clean);
       return;
     }
-    setProblem("Esa mesa no existe. Comprueba el código.");
+    const detalle = (await response.json().catch(() => ({}))) as { error?: string };
+    setProblem(detalle.error ?? "Esa mesa no existe. Comprueba el código.");
     setBusy(false);
   };
 
