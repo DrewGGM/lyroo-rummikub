@@ -178,6 +178,54 @@ describe("reloj del turno", () => {
   });
 });
 
+describe("la alarma nunca se repite sola", () => {
+  /** Cuándo está citada la sala para despertar. */
+  async function proximaAlarma(code: string): Promise<number | null> {
+    let cuando: number | null = null;
+    await runInDurableObject(roomStub(code), async (_instance, state) => {
+      cuando = await state.storage.getAlarm();
+    });
+    return cuando;
+  }
+
+  it("no se cita en el pasado cuando la mesa se queda vacía", async () => {
+    // Una partida abandonada con el turno vencido reprogramaba la alarma a la
+    // hora del turno, que ya había pasado: saltaba al instante, volvía a
+    // citarse en el pasado, y así hasta comerse el presupuesto del día.
+    const { code } = await dealtRoom(30);
+    await expireTurn(code);
+    await evictDurableObject(roomStub(code), { webSockets: "close" });
+
+    await runDurableObjectAlarm(roomStub(code));
+
+    const cita = await proximaAlarma(code);
+    expect(cita).not.toBeNull();
+    expect(cita!).toBeGreaterThan(Date.now());
+  });
+
+  it("aplaza de verdad, no despierta cada pocos milisegundos", async () => {
+    const { code } = await dealtRoom(30);
+    await expireTurn(code);
+    await evictDurableObject(roomStub(code), { webSockets: "close" });
+
+    // Se despierta varias veces seguidas y cada una tiene que aplazar la
+    // siguiente cita bien lejos. Si quedara a milisegundos vista, la sala se
+    // pasaría el día despertándose sola.
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      await runDurableObjectAlarm(roomStub(code));
+      const falta = (await proximaAlarma(code))! - Date.now();
+      expect(falta).toBeGreaterThan(60_000);
+    }
+  });
+
+  it("mantiene el reloj mientras alguien mira", async () => {
+    const { code } = await dealtRoom(30);
+    const cita = await proximaAlarma(code);
+    expect(cita).not.toBeNull();
+    expect(cita!).toBeGreaterThan(Date.now());
+  });
+});
+
 describe("hibernación", () => {
   it("la partida sigue igual después de que el objeto se duerma", async () => {
     const { code, ana, beto, view } = await dealtRoom();

@@ -43,6 +43,8 @@ const IDLE_SWEEP_MS = 3 * 60 * 60 * 1000;
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000;
 /** Margen para no dar un turno por vencido antes de tiempo. */
 const ALARM_SLACK_MS = 250;
+/** Ninguna alarma se programa más cerca que esto: en el pasado, jamás. */
+const ALARM_FLOOR_MS = 500;
 /** Tope de conexiones por sala: 8 asientos más reconexiones en curso. */
 const MAX_SOCKETS = 20;
 
@@ -314,8 +316,9 @@ export class GameRoom extends DurableObject<Env> {
             };
         this.#send(origin, rejected);
       }
-      // El estado no se ha tocado: la mesa sigue como estaba para todos.
-      void previous;
+      // El estado no se ha tocado: la mesa sigue como estaba para todos. Aun
+      // así hay que dejar una cita pendiente, o la sala se quedaría sin reloj.
+      this.#scheduleAlarm(previous);
       return;
     }
 
@@ -418,11 +421,24 @@ export class GameRoom extends DurableObject<Env> {
     return rows[0]?.updated_at ?? 0;
   }
 
+  /**
+   * Cuándo hay que volver a despertar.
+   *
+   * Con la mesa vacía el reloj del turno está parado, así que la próxima cita
+   * es la de limpieza y nunca la hora del turno: esa ya pasó, y programar una
+   * alarma en el pasado hace que salte al instante, vuelva a programarse en el
+   * pasado y se repita sin parar. Un bucle así se come el presupuesto de un día
+   * entero en cuestión de minutos.
+   */
   #scheduleAlarm(state: GameState): void {
-    const when =
-      state.status === "playing" && state.turnEndsAt !== null
-        ? state.turnEndsAt
-        : Date.now() + IDLE_SWEEP_MS;
+    const now = Date.now();
+    const watching = this.ctx.getWebSockets().length > 0;
+    const enJuego =
+      watching && state.status === "playing" && state.turnEndsAt !== null;
+
+    const when = enJuego
+      ? Math.max(state.turnEndsAt!, now + ALARM_FLOOR_MS)
+      : now + IDLE_SWEEP_MS;
     this.ctx.storage.setAlarm(when);
   }
 }
