@@ -63,7 +63,9 @@ jobs:
   publicar:
     name: Publicar en Cloudflare
     needs: comprobar
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Los pull requests se comprueban pero no se publican. Lanzarlo a mano
+    # desde Actions sirve para volver a publicar sin tocar el codigo.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
