@@ -281,6 +281,44 @@ describe("partida", () => {
     return { code, seats, views };
   }
 
+  it("cambia una regla sin revertir la anterior", async () => {
+    // Dos cambios seguidos parten del mismo estado en pantalla: si el servidor
+    // sustituyera las reglas enteras en vez de fusionarlas, el segundo clic
+    // desharía el primero.
+    const { seats } = await table(["Ana", "Beto"]);
+    seats[0]!.client.send({ type: "settings", rules: { openingPoints: 50 } });
+    seats[0]!.client.send({ type: "settings", rules: { turnSeconds: null } });
+
+    const vista = await seats[0]!.client.until(
+      "state",
+      (m) => m.view.rules.turnSeconds === null,
+    );
+    expect(vista.view.rules.openingPoints).toBe(50);
+    expect(vista.view.rules.handSize).toBe(14);
+  });
+
+  it("exige de verdad los puntos de apertura de la mesa", async () => {
+    const { seats, views } = await dealtTable(["Ana", "Beto"], { openingPoints: 50 });
+    expect(views[0]!.rules.openingPoints).toBe(50);
+
+    // Un grupo de dieces son 30 puntos: sobra con 30, se queda corto con 50.
+    const rack = views[0]!.rack as string[];
+    seats[0]!.client.send({ type: "commit", board: [rack.slice(0, 3)], rack: rack.slice(3) });
+    const respuesta = await seats[0]!.client.until("rejected");
+    expect(["MELD_TOO_LOW", "INVALID_SET"]).toContain(respuesta.code);
+  });
+
+  it("juega sin reloj cuando la mesa lo pide", async () => {
+    const { views } = await dealtTable(["Ana", "Beto"], { turnSeconds: null });
+    expect(views[0]!.turnEndsAt).toBeNull();
+  });
+
+  it("reparte dieciséis fichas si la mesa lo pide", async () => {
+    const { views } = await dealtTable(["Ana", "Beto"], { handSize: 16 });
+    expect(views[0]!.rack).toHaveLength(16);
+    expect(views[0]!.poolCount).toBe(106 - 32);
+  });
+
   it("solo el anfitrión puede repartir", async () => {
     const { seats } = await table(["Ana", "Beto"]);
     seats[1]!.client.send({ type: "start" });

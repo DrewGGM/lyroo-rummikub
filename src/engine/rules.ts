@@ -38,27 +38,31 @@ export const HAND_SIZE_CHOICES: readonly number[] = [14, 16];
 export const JOKER_CHOICES: readonly JokerRule[] = ["strict", "free"];
 
 /**
- * Devuelve unas reglas válidas a partir de lo que llegue por la red. Cualquier
- * valor fuera de las opciones ofrecidas se sustituye por el oficial: el cliente
- * no puede inventarse una variante repartiendo cuarenta fichas.
+ * Devuelve unas reglas válidas a partir de lo que llegue por la red.
+ *
+ * Lo que falte o no encaje se toma de `base`, así que sirve tanto para crear
+ * una sala —partiendo de las oficiales— como para cambiar una sola regla sin
+ * tocar las demás. Y cualquier valor fuera de las opciones ofrecidas se
+ * descarta: el cliente no puede inventarse una variante repartiendo cuarenta
+ * fichas.
  */
-export function sanitizeRules(raw: unknown): RoomRules {
-  if (typeof raw !== "object" || raw === null) return DEFAULT_RULES;
+export function sanitizeRules(raw: unknown, base: RoomRules = DEFAULT_RULES): RoomRules {
+  if (typeof raw !== "object" || raw === null) return base;
   const value = raw as Record<string, unknown>;
 
   return {
     turnSeconds: pick(
       value["turnSeconds"] === null ? null : Number(value["turnSeconds"]),
       TURN_SECONDS_CHOICES,
-      DEFAULT_RULES.turnSeconds,
+      base.turnSeconds,
     ),
     openingPoints: pick(
       Number(value["openingPoints"]),
       OPENING_CHOICES,
-      DEFAULT_RULES.openingPoints,
+      base.openingPoints,
     ),
-    handSize: pick(Number(value["handSize"]), HAND_SIZE_CHOICES, DEFAULT_RULES.handSize),
-    jokers: pick(value["jokers"], JOKER_CHOICES, DEFAULT_RULES.jokers),
+    handSize: pick(Number(value["handSize"]), HAND_SIZE_CHOICES, base.handSize),
+    jokers: pick(value["jokers"], JOKER_CHOICES, base.jokers),
   };
 }
 

@@ -92,7 +92,10 @@ export function setRules(state: GameState, actorId: string, raw: unknown): Trans
   if (actorId !== state.hostId) {
     return fail("NOT_HOST", "Solo quien creó la sala puede cambiar las reglas.");
   }
-  state.rules = sanitizeRules(raw);
+  // Se fusiona sobre lo que ya hay en vez de sustituirlo entero: así cambiar
+  // dos reglas seguidas no revierte la primera si el cliente todavía no había
+  // recibido el estado nuevo.
+  state.rules = sanitizeRules(raw, state.rules);
   return succeed(state);
 }
 

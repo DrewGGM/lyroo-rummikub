@@ -329,8 +329,11 @@ function Lobby({
   const isHost = view.you === view.hostId;
   const ready = view.players.filter((player) => player.connected).length;
 
+  // Solo se manda lo que cambia. Mandar las reglas enteras leídas de la vista
+  // hacía que dos clics seguidos revirtieran el primero, porque los dos partían
+  // del mismo estado antiguo.
   const change = (patch: Partial<RoomRules>) => {
-    link.send({ type: "settings", rules: { ...view.rules, ...patch } });
+    link.send({ type: "settings", rules: patch });
   };
 
   return (
