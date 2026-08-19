@@ -6,7 +6,8 @@
  * servidor tiene la última palabra sobre si la jugada vale.
  */
 
-import { readSet } from "../../engine/sets";
+import { canonicalOrder, readSet } from "../../engine/sets";
+import { parseTile } from "../../engine/tiles";
 import { MIN_SET_SIZE, type Board, type TileId } from "../../engine/types";
 
 export type Slot =
@@ -175,6 +176,69 @@ export function runAround(rack: readonly TileId[], index: number): TileId[] {
     }
   }
   return best;
+}
+
+/**
+ * Recoloca una combinación después de meterle una ficha.
+ *
+ * Dos cosas que uno espera de una mesa de verdad:
+ *
+ * - Si metes el 1 en el 2-3-4-5, la escalera queda 1-2-3-4-5. Da igual por
+ *   dónde la hayas soltado: nadie quiere ver un 2-3-1-4-5 y tener que ir
+ *   colocándolo a mano.
+ * - Si metes un 5 en el 1-2-3-4-5-6-7-8, lo que quieres es partirla en dos
+ *   escaleras, 1-2-3-4-5 y 5-6-7-8, no que se rompa.
+ *
+ * Si no hay forma de arreglarla se deja tal cual: que se vea rota es mejor que
+ * inventarse una recolocación que el jugador no pidió.
+ */
+export function tidySet(tiles: readonly TileId[]): TileId[][] {
+  if (tiles.length === 0) return [];
+  if (readSet(tiles).length > 0) return [canonicalOrder(tiles)];
+
+  const ordenadas = [...tiles].sort(porValor);
+  for (
+    let corte = MIN_SET_SIZE;
+    corte <= ordenadas.length - MIN_SET_SIZE;
+    corte++
+  ) {
+    const izquierda = ordenadas.slice(0, corte);
+    const derecha = ordenadas.slice(corte);
+    if (readSet(izquierda).length > 0 && readSet(derecha).length > 0) {
+      return [canonicalOrder(izquierda), canonicalOrder(derecha)];
+    }
+  }
+  return [tiles.slice()];
+}
+
+function porValor(a: TileId, b: TileId): number {
+  const uno = parseTile(a);
+  const otro = parseTile(b);
+  // Los comodines al final: valen para cualquier hueco.
+  const valor = (t: typeof uno) => (t && t.kind === "number" ? t.value : 99);
+  return valor(uno) - valor(otro) || a.localeCompare(b);
+}
+
+/** Recoloca la fila donde acaba de caer una ficha, y deja el resto igual. */
+export function tidyAround(layout: Layout, tile: TileId): Layout {
+  const fila = layout.board.findIndex((set) => set.includes(tile));
+  if (fila < 0) return layout;
+
+  const arreglada = tidySet(layout.board[fila]!);
+  if (
+    arreglada.length === 1 &&
+    arreglada[0]!.every((id, i) => id === layout.board[fila]![i])
+  ) {
+    return layout;
+  }
+  return {
+    board: [
+      ...layout.board.slice(0, fila),
+      ...arreglada,
+      ...layout.board.slice(fila + 1),
+    ],
+    rack: layout.rack,
+  };
 }
 
 /**

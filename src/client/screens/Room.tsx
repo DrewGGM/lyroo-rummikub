@@ -211,17 +211,18 @@ function Seated({
           <ArrowLeft size={17} aria-hidden />
         </button>
         <CodeChip code={view.code} />
-        <Seats
-          view={view}
-          secondsLeft={secondsLeft}
-          movingId={link.preview?.playerId ?? null}
-        />
         <span className="bar__spacer" />
         <span className="bar__pool" title="Fichas en el pozo">
           <Layers size={13} aria-hidden />
           {view.poolCount}
         </span>
       </div>
+
+      <Seats
+        view={view}
+        secondsLeft={secondsLeft}
+        movingId={link.preview?.playerId ?? null}
+      />
 
       <Felt
         board={showing}

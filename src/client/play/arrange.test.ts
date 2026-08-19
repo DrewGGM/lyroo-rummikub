@@ -5,9 +5,12 @@ import {
   moveTiles,
   runAround,
   sortRack,
-  whereItFits,
+  tidyAround,
+  tidySet,
   type Layout,
+  whereItFits,
 } from "./arrange";
+import { readSet } from "../../engine/sets";
 
 const R = (v: number, c = 0) => `r${v}_${c}`;
 const B = (v: number, c = 0) => `b${v}_${c}`;
@@ -211,5 +214,67 @@ describe("colocar una ficha sola", () => {
       [B(3), B(4), B(5)],
     ];
     expect(whereItFits(board, R(6))).toEqual({ kind: "set", set: 0, index: 3 });
+  });
+});
+
+describe("la mesa se recoloca sola", () => {
+  it("ordena la escalera en cuanto encaja la ficha", () => {
+    // Sueltas el 1 en medio del 2-3-4-5 y queda 2-3-1-4-5.
+    expect(tidySet([R(2), R(3), R(1), R(4), R(5)])).toEqual([
+      [R(1), R(2), R(3), R(4), R(5)],
+    ]);
+  });
+
+  it("no toca una escalera que ya está en orden", () => {
+    const escalera = [B(7), B(8), B(9)];
+    expect(tidySet(escalera)).toEqual([escalera]);
+  });
+
+  it("parte la escalera en dos cuando repites un número", () => {
+    // 1-2-3-4-5-6-7-8 con otro 5 dentro: sale 1-2-3-4-5 y 5-6-7-8.
+    const larga = [K(1), K(2), K(3), K(4), K(5), K(6), K(7), K(8), K(5, 1)];
+    const partida = tidySet(larga);
+    expect(partida).toHaveLength(2);
+    expect(partida[0]).toHaveLength(5);
+    expect(partida[1]).toHaveLength(4);
+    for (const trozo of partida) expect(readSet(trozo).length).toBeGreaterThan(0);
+  });
+
+  it("deja la combinación como está si no hay forma de arreglarla", () => {
+    // Un grupo de cinco con color repetido no se parte en dos válidas.
+    const rota = [R(7), B(7), K(7), O(7), R(7, 1)];
+    expect(tidySet(rota)).toEqual([rota]);
+  });
+
+  it("solo recoloca la fila donde cayó la ficha", () => {
+    const antes = layout([[B(9), B(7), B(8)], [R(4), R(3), R(5)]], []);
+    const despues = tidyAround(antes, B(7));
+    expect(despues.board[0]).toEqual([B(7), B(8), B(9)]);
+    // La otra sigue desordenada: no se pidió tocarla.
+    expect(despues.board[1]).toEqual([R(4), R(3), R(5)]);
+  });
+
+  it("la partida ocupa el sitio de la original, sin mover las demás", () => {
+    const antes = layout(
+      [
+        [O(1), O(2), O(3)],
+        [K(1), K(2), K(3), K(4), K(5), K(6), K(7), K(8), K(5, 1)],
+        [R(5), B(5), K(5, 2)],
+      ],
+      [],
+    );
+    const despues = tidyAround(antes, K(5, 1));
+    expect(despues.board).toHaveLength(4);
+    expect(despues.board[0]).toEqual([O(1), O(2), O(3)]);
+    expect(despues.board[3]).toEqual([R(5), B(5), K(5, 2)]);
+  });
+
+  it("no pierde ni inventa fichas al recolocar", () => {
+    const antes = layout(
+      [[K(1), K(2), K(3), K(4), K(5), K(6), K(7), K(8), K(5, 1)]],
+      [],
+    );
+    const despues = tidyAround(antes, K(5, 1));
+    expect(despues.board.flat().sort()).toEqual(antes.board.flat().sort());
   });
 });

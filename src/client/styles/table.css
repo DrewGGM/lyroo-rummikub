@@ -16,7 +16,12 @@
   /* La columna se acota a la pantalla. Sin esto, un atril de catorce fichas
      ensancharía la rejilla y empujaría la mesa fuera de la vista. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "bar"
+    "seats"
+    "felt"
+    "rack";
   height: 100dvh;
   width: 100%;
   max-width: 62rem;
@@ -36,6 +41,7 @@
   align-items: center;
   gap: var(--gap-2);
   padding: max(env(safe-area-inset-top), 0.4rem) var(--gap-3) var(--gap-2);
+  grid-area: bar;
 }
 
 .bar__code {
@@ -74,11 +80,12 @@
 .seats {
   display: flex;
   min-width: 0;
-  /* En vertical los jugadores ocupan su propia línea; en horizontal se meten
-     en la barra, que es donde sobra sitio. */
-  order: 3;
-  flex-basis: 100%;
+  grid-area: seats;
+  /* En vertical los jugadores van en una tira bajo la barra; en horizontal se
+     ponen en columna a la izquierda, donde el sitio no le hace falta a nadie:
+     lo que escasea en horizontal es el alto, y así la mesa se lo queda entero. */
   gap: var(--gap-2);
+  padding-inline: var(--gap-3);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -164,6 +171,10 @@
   font-size: var(--step-s);
   font-weight: 600;
   white-space: nowrap;
+  /* Un nombre largo no puede ensanchar la columna y robarle sitio a la mesa. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .seat__count {
@@ -203,6 +214,7 @@
 /* --- Tapete ------------------------------------------------------------- */
 
 .felt {
+  grid-area: felt;
   position: relative;
   min-width: 0;
   /* Las fichas encogen hasta que la mesa entera cabe, así que normalmente esto
@@ -356,6 +368,7 @@
 /* --- Atril -------------------------------------------------------------- */
 
 .rack {
+  grid-area: rack;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "tools" "ledge" "actions";
@@ -468,10 +481,33 @@
     padding-bottom: 0.25rem;
   }
 
-  /* Los jugadores dejan de ocupar una fila propia y se meten en la barra. */
+  /* Los jugadores se van a una columna a la izquierda: en horizontal el alto
+     es lo único que escasea, y así la mesa se queda con todo el que hay. */
+  .room {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "seats bar"
+      "seats felt"
+      "seats rack";
+  }
+
   .seats {
-    order: 0;
-    flex-basis: auto;
+    flex-direction: column;
+    align-content: start;
+    width: 11.5rem;
+    padding: max(env(safe-area-inset-top), 0.3rem) 0 var(--gap-2) var(--gap-3);
+    gap: 0.3rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .seat {
+    width: 100%;
+  }
+
+  /* Con la columna al lado, el nombre manda y el resto se aprieta al final. */
+  .seat__name {
     flex: 1;
   }
 

@@ -14,6 +14,7 @@ import {
   brokenSets,
   moveTile,
   moveTiles,
+  tidyAround,
   runAround,
   sameLayout,
   sortRack,
@@ -120,10 +121,20 @@ export function useTable(
           const tile = current.board[from.set]?.[from.index];
           if (tile === undefined || onBoardBefore.has(tile)) return current;
         }
+        const movida =
+          from.kind === "set"
+            ? current.board[from.set]?.[from.index]
+            : from.kind === "rack"
+              ? current.rack[from.index]
+              : undefined;
         const next = moveTile(current, from, to);
         if (sameLayout(next, current)) return current;
         remember(current);
-        return next;
+        // Al caer en la mesa, la combinación se recoloca sola: la escalera se
+        // ordena y, si el número repetido la parte en dos, se parte.
+        return to.kind === "rack" || movida === undefined
+          ? next
+          : tidyAround(next, movida);
       });
     },
     [onBoardBefore, remember, allows],
@@ -139,7 +150,9 @@ export function useTable(
         const next = moveTiles(current, tiles, to);
         if (sameLayout(next, current)) return current;
         remember(current);
-        return next;
+        return to.kind === "rack" || tiles[0] === undefined
+          ? next
+          : tidyAround(next, tiles[0]);
       });
     },
     [onBoardBefore, remember, filasDeAntes, yaAbrio],
