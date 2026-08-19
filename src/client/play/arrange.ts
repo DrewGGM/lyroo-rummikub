@@ -179,6 +179,37 @@ export function runAround(rack: readonly TileId[], index: number): TileId[] {
 }
 
 /**
+ * Devuelve el atril del servidor puesto en el orden que tú le habías dado.
+ *
+ * Hace falta porque el servidor no guarda tu orden —ni debe: es cosa tuya— y
+ * manda el atril cada vez que alguien mueve una ficha. Sin esto, colocarte la
+ * mano mientras esperas turno no serviría de nada: al segundo siguiente se
+ * volvería a ordenar sola.
+ *
+ * Lo que llega nuevo —lo que acabas de robar— va al final, que es donde uno
+ * deja la ficha recién cogida antes de decidir dónde ponerla.
+ */
+export function keepOrder(
+  rack: readonly TileId[],
+  preferred: readonly TileId[],
+): TileId[] {
+  const quedan = new Set(rack);
+  const puestas = new Set<TileId>();
+  const ordenado: TileId[] = [];
+
+  for (const id of preferred) {
+    if (quedan.has(id) && !puestas.has(id)) {
+      ordenado.push(id);
+      puestas.add(id);
+    }
+  }
+  for (const id of rack) {
+    if (!puestas.has(id)) ordenado.push(id);
+  }
+  return ordenado;
+}
+
+/**
  * Recoloca una combinación después de meterle una ficha.
  *
  * Dos cosas que uno espera de una mesa de verdad:

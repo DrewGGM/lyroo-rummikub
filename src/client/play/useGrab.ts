@@ -215,7 +215,12 @@ export function useGrab(
 
       event.preventDefault();
       paint(event.clientX, event.clientY, gesture);
-      setTarget(resolveDrop(event.clientX, event.clientY));
+      // Solo se resalta lo que de verdad admite la ficha. Marcar un sitio que
+      // luego la rechaza --la mesa cuando no es tu turno, o una fila intocable
+      // antes de abrir-- es peor que no marcar nada.
+      const posible = resolveDrop(event.clientX, event.clientY);
+      const desde = cogido.current?.from ?? gesture.from;
+      setTarget(posible && allows(desde, posible) ? posible : null);
     };
 
     const onUp = (event: PointerEvent) => {
@@ -267,7 +272,7 @@ export function useGrab(
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onCancel);
     };
-  }, [gesture, drop, paint, runAt, sendHome, settle]);
+  }, [gesture, drop, paint, runAt, sendHome, settle, allows]);
 
   // Ninguna cuenta atrás sobrevive al desmontaje.
   useEffect(() => () => clearTimeout(cuentaAtras.current), []);

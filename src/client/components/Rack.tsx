@@ -1,6 +1,7 @@
-import { useMemo, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useMemo, type PointerEvent, type ReactNode } from "react";
 import { ArrowUpDown, RotateCcw, Undo2 } from "lucide-react";
 
+import { rackBlocks } from "../../engine/order";
 import type { TileId } from "../../engine/types";
 import type { Slot, SortMode } from "../play/arrange";
 import { fitRackTile } from "../play/fit";
@@ -23,6 +24,10 @@ type RackProps = {
   children: ReactNode;
 };
 
+/** Lo que ocupa un hueco de separación, medido en fichas. */
+const GAP_TILES = 0.55;
+const SIN_CORTES: number[] = [];
+
 export function Rack({
   rack,
   grab,
@@ -37,8 +42,25 @@ export function Rack({
   children,
 }: RackProps) {
   const [ref, box] = useMeasuredBox<HTMLDivElement>();
-  // El atril tampoco se desplaza: con veinte fichas encogen hasta caber.
-  const tile = useMemo(() => fitRackTile(rack.length, box), [rack.length, box]);
+
+  /**
+   * Los huecos entre lo que ya cumple regla y lo suelto, como en el atril de
+   * madera. Mientras tienes una ficha en la mano no se recalculan: que se
+   * abrieran y cerraran huecos debajo del dedo haría fallar el sitio donde
+   * quieres soltarla.
+   */
+  const cortes = useMemo(
+    () => (grab.holding ? SIN_CORTES : rackBlocks(rack)),
+    [rack, grab.holding],
+  );
+  const corte = useMemo(() => new Set(cortes), [cortes]);
+
+  // El atril tampoco se desplaza: con veinte fichas encogen hasta caber. Los
+  // huecos ocupan sitio, así que cuentan como algo más de media ficha.
+  const tile = useMemo(
+    () => fitRackTile(rack.length + cortes.length * GAP_TILES, box),
+    [rack.length, cortes.length, box],
+  );
 
   const targeted = grab.target?.kind === "rack";
 
@@ -102,7 +124,7 @@ export function Rack({
         {rack.map((id, index) => {
           const slot: Slot = { kind: "rack", index };
           const held = grab.isHeld(id);
-          return (
+          const ficha = (
             <Tile
               key={id}
               id={id}
@@ -120,6 +142,15 @@ export function Rack({
               }
               onClick={(event) => event.stopPropagation()}
             />
+          );
+          if (!corte.has(index)) return ficha;
+          // El hueco va pegado a la ficha que abre el bloque, para que se
+          // mueva con ella y no quede un espacio suelto al reordenar.
+          return (
+            <Fragment key={`hueco-${id}`}>
+              <span className="rack__gap" aria-hidden />
+              {ficha}
+            </Fragment>
           );
         })}
       </div>

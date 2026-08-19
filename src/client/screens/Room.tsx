@@ -142,7 +142,9 @@ function Seated({
   const yaAbrio = Boolean(
     view.players.find((player) => player.id === view.you)?.hasMelded,
   );
-  const table = useTable(view.board, view.rack as string[], yaAbrio);
+  const table = useTable(view.board, view.rack as string[], yaAbrio, isMyTurn);
+  // El atril es tuyo: puedes irlo colocando aunque juegue otro.
+  const puedoOrdenar = view.status === "playing";
   const grab = useGrab(
     table.place,
     table.placeMany,
@@ -238,7 +240,7 @@ function Seated({
       <Rack
         rack={table.rack}
         grab={grab}
-        canArrange={isMyTurn}
+        canArrange={puedoOrdenar}
         dealing={dealing}
         sortMode={sortMode}
         onSort={(mode) => {

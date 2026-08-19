@@ -572,6 +572,14 @@
   scrollbar-color: rgb(255 255 255 / 0.18) transparent;
 }
 
+/* El hueco que separa lo que ya cumple regla de lo suelto, como el espacio que
+   uno deja en el atril de madera. */
+.rack__gap {
+  flex: 0 0 auto;
+  width: calc(var(--tile-w) * 0.55);
+  align-self: stretch;
+}
+
 /* --- Aviso de jugada rechazada ------------------------------------------ */
 
 .notice {

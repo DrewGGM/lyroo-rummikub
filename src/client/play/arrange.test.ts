@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  keepOrder,
   locate,
   moveTile,
   moveTiles,
@@ -276,5 +277,37 @@ describe("la mesa se recoloca sola", () => {
     );
     const despues = tidyAround(antes, K(5, 1));
     expect(despues.board.flat().sort()).toEqual(antes.board.flat().sort());
+  });
+});
+
+describe("tu orden del atril se respeta", () => {
+  it("mantiene el orden que le diste aunque el servidor lo mande de otro modo", () => {
+    const delServidor = [R(1), R(5), B(9)];
+    const tuyo = [B(9), R(5), R(1)];
+    expect(keepOrder(delServidor, tuyo)).toEqual([B(9), R(5), R(1)]);
+  });
+
+  it("la ficha robada aparece al final, no en medio de lo colocado", () => {
+    const delServidor = [R(1), R(5), B(9), K(13)];
+    const tuyo = [B(9), R(5), R(1)];
+    expect(keepOrder(delServidor, tuyo)).toEqual([B(9), R(5), R(1), K(13)]);
+  });
+
+  it("olvida las fichas que ya bajaste a la mesa", () => {
+    const delServidor = [R(1), B(9)];
+    const tuyo = [B(9), R(5), R(1)];
+    expect(keepOrder(delServidor, tuyo)).toEqual([B(9), R(1)]);
+  });
+
+  it("sin orden previo deja el atril como viene", () => {
+    const delServidor = [R(1), R(5), B(9)];
+    expect(keepOrder(delServidor, [])).toEqual(delServidor);
+  });
+
+  it("no pierde ni duplica fichas", () => {
+    const delServidor = [R(1), R(5), B(9), K(13), J()];
+    const tuyo = [K(13), R(1)];
+    const salida = keepOrder(delServidor, tuyo);
+    expect(salida.slice().sort()).toEqual(delServidor.slice().sort());
   });
 });

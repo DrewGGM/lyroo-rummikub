@@ -12,6 +12,7 @@ import { openingValue } from "../../engine/board";
 import type { Board, TileId } from "../../engine/types";
 import {
   brokenSets,
+  keepOrder,
   moveTile,
   moveTiles,
   tidyAround,
@@ -54,6 +55,8 @@ export function useTable(
   serverRack: readonly TileId[],
   /** Si ya hiciste tu jugada inicial. Antes de eso la mesa es intocable. */
   yaAbrio: boolean,
+  /** Fuera de turno la mesa no se toca, pero tu atril sí es tuyo. */
+  esMiTurno: boolean,
 ): Table {
   const baseline = useMemo<Layout>(
     () => ({ board: serverBoard, rack: serverRack }),
@@ -63,6 +66,14 @@ export function useTable(
   const [layout, setLayout] = useState<Layout>(baseline);
   const [history, setHistory] = useState<Layout[]>([]);
   const lastBaseline = useRef<string>("");
+  /**
+   * El orden en que tú has dejado tu atril.
+   *
+   * El servidor manda el atril entero cada vez que alguien mueve algo, y no
+   * sabe —ni tiene por qué— cómo lo tienes colocado. Sin guardarlo aquí,
+   * ordenarte la mano mientras esperas turno no duraría ni un segundo.
+   */
+  const ordenPropio = useRef<readonly TileId[]>(serverRack);
 
   // La mesa autoritativa manda: cuando cambia de verdad (alguien jugó, robó, o
   // te rechazaron la jugada), lo que estabas montando deja de tener sentido.
@@ -74,9 +85,18 @@ export function useTable(
   useEffect(() => {
     if (lastBaseline.current === baselineKey) return;
     lastBaseline.current = baselineKey;
-    setLayout(baseline);
+    setLayout({
+      board: baseline.board,
+      rack: keepOrder(baseline.rack, ordenPropio.current),
+    });
     setHistory([]);
   }, [baselineKey, baseline]);
+
+  // Todo cambio del atril se apunta, venga de arrastrar o de los botones de
+  // ordenar, para poder devolverlo tal cual tras la siguiente novedad.
+  useEffect(() => {
+    ordenPropio.current = layout.rack;
+  }, [layout.rack]);
 
   /** Las fichas que ya estaban en la mesa antes de tu turno no vuelven atrás. */
   const onBoardBefore = useMemo(
@@ -95,6 +115,10 @@ export function useTable(
 
   const allows = useCallback(
     (from: Slot, to: Slot) => {
+      // Fuera de turno puedes colocarte el atril cuanto quieras —es tuyo y no
+      // lo ve nadie—, pero la mesa es de todos y solo la toca quien juega.
+      if (!esMiTurno) return from.kind === "rack" && to.kind === "rack";
+
       // Mientras no hayas abierto, la mesa no se toca: la jugada inicial se
       // hace solo con tus fichas. Dejar montarlo para que el servidor lo
       // rechace después no ayuda a nadie.
@@ -106,7 +130,7 @@ export function useTable(
       // Puedes recoger lo que tú acabas de bajar, no lo que ya estaba jugado.
       return tile !== undefined && !onBoardBefore.has(tile);
     },
-    [layout.board, onBoardBefore, filasDeAntes, yaAbrio],
+    [layout.board, onBoardBefore, filasDeAntes, yaAbrio, esMiTurno],
   );
 
   const remember = useCallback((previous: Layout) => {
@@ -142,6 +166,7 @@ export function useTable(
 
   const placeMany = useCallback(
     (tiles: readonly TileId[], to: Slot) => {
+      if (!esMiTurno && to.kind !== "rack") return;
       if (!yaAbrio && to.kind === "set" && filasDeAntes.has(to.set)) return;
       setLayout((current) => {
         if (to.kind === "rack" && tiles.some((id) => onBoardBefore.has(id))) {
@@ -155,7 +180,7 @@ export function useTable(
           : tidyAround(next, tiles[0]);
       });
     },
-    [onBoardBefore, remember, filasDeAntes, yaAbrio],
+    [onBoardBefore, remember, filasDeAntes, yaAbrio, esMiTurno],
   );
 
   const runAt = useCallback(
@@ -192,7 +217,11 @@ export function useTable(
   }, []);
 
   const reset = useCallback(() => {
-    setLayout(baseline);
+    // Recoger la jugada no deshace cómo tienes puesto el atril.
+    setLayout({
+      board: baseline.board,
+      rack: keepOrder(baseline.rack, ordenPropio.current),
+    });
     setHistory([]);
   }, [baseline]);
 

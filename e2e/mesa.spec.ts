@@ -6,7 +6,7 @@
  * Object y WebSockets.
  */
 
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 import { readSet, setValue } from "../src/engine/sets";
 import { runAround } from "../src/client/play/arrange";
@@ -428,3 +428,58 @@ test.describe("coger la combinación entera", () => {
     throw new Error("no salió ninguna mano con combinación contigua en 10 repartos");
   });
 });
+
+test("fuera de turno el atril es tuyo pero la mesa no se toca", async ({ browser }) => {
+  const { esperando, jugando } = await sentarADos(browser);
+
+  // La mesa no admite nada mientras juega otro: la ficha se queda en el atril.
+  const cuantas = await esperando.locator(".rack__ledge .tile").count();
+  await esperando.locator(".rack__ledge .tile").first().click();
+  await esperando.locator(".felt").click({ position: { x: 400, y: 120 } });
+  await expect(esperando.locator(".felt .tile")).toHaveCount(0);
+  await expect(esperando.locator(".rack__ledge .tile")).toHaveCount(cuantas);
+
+  // El atril sí: es tuyo y no lo ve nadie.
+  const antes = await esperando.locator(".rack__ledge .tile").allInnerTexts();
+  await esperando.getByRole("button", { name: "Grupos" }).click();
+  const despues = await esperando.locator(".rack__ledge .tile").allInnerTexts();
+  expect(despues).not.toEqual(antes);
+  expect(despues.slice().sort()).toEqual(antes.slice().sort());
+
+  // Y sigue puesto a tu manera cuando el otro juega y llega la novedad: si no,
+  // colocarse la mano mientras esperas no serviría de nada.
+  await jugando.getByRole("button", { name: "Robar" }).click();
+  await expect
+    .poll(() => esperando.locator(".rack__ledge .tile").allInnerTexts())
+    .toEqual(despues);
+});
+
+/** Deja una mesa de dos empezada y dice a quién le toca. */
+async function sentarADos(browser: Browser) {
+  const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();
+  await uno.goto("/");
+  await uno.getByRole("button", { name: "Crear mesa" }).click();
+  await uno.waitForURL(/\/g\/[A-Z0-9]{6}$/);
+  const codigo = uno.url().split("/g/")[1]!;
+  await uno.getByPlaceholder("Tu nombre").fill("Andrew");
+  await uno.getByRole("button", { name: "Sentarme a la mesa" }).click();
+
+  const dos = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();
+  await dos.goto(`/g/${codigo}`);
+  await dos.getByPlaceholder("Tu nombre").fill("Beatriz");
+  await dos.getByRole("button", { name: "Sentarme a la mesa" }).click();
+  await uno.getByRole("button", { name: "Repartir a 2" }).click();
+
+  // Antes de preguntar por el turno hay que esperar al reparto: preguntarle a
+  // un botón que todavía no existe se queda esperando hasta que expira todo.
+  for (const quien of [uno, dos]) {
+    await expect(quien.locator(".rack__ledge .tile")).toHaveCount(14, {
+      timeout: 20_000,
+    });
+  }
+
+  const leToca = await uno.getByRole("button", { name: "Robar" }).isEnabled();
+  return { jugando: leToca ? uno : dos, esperando: leToca ? dos : uno };
+}
+
+const HORIZONTAL = { width: 900, height: 420 };

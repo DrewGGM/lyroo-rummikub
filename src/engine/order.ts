@@ -6,8 +6,9 @@
  * partida colocando catorce fichas a mano.
  */
 
+import { readSet } from "./sets";
 import { parseTile } from "./tiles";
-import { COLORS, type TileId } from "./types";
+import { COLORS, MIN_SET_SIZE, type TileId } from "./types";
 
 export type SortMode = "runs" | "groups";
 
@@ -33,4 +34,40 @@ export function sortRack(rack: readonly TileId[], mode: SortMode): TileId[] {
     }
     return a.localeCompare(b);
   });
+}
+
+/**
+ * Dónde poner una separación en el atril.
+ *
+ * En el juego de mesa uno deja un hueco entre lo que ya tiene resuelto y lo
+ * suelto: se ve de un vistazo qué está listo para bajar. Aquí se calcula igual,
+ * mirando el atril de izquierda a derecha y quedándose con el tramo más largo
+ * que ya cumple regla.
+ *
+ * Devuelve los índices donde empieza un bloque nuevo, separación incluida.
+ */
+export function rackBlocks(rack: readonly TileId[]): number[] {
+  // Un conjunto y no una lista: entre dos combinaciones seguidas, el final de
+  // una y el principio de la otra son el mismo sitio y va un solo hueco.
+  const cortes = new Set<number>();
+  let i = 0;
+
+  while (i < rack.length) {
+    let largo = 0;
+    // El tramo más largo primero: un 5-6-7-8 vale más que quedarse en el 5-6-7.
+    for (let fin = rack.length; fin >= i + MIN_SET_SIZE; fin--) {
+      if (readSet(rack.slice(i, fin)).length > 0) {
+        largo = fin - i;
+        break;
+      }
+    }
+    if (largo === 0) {
+      i += 1;
+      continue;
+    }
+    if (i > 0) cortes.add(i);
+    if (i + largo < rack.length) cortes.add(i + largo);
+    i += largo;
+  }
+  return [...cortes].sort((a, b) => a - b);
 }
