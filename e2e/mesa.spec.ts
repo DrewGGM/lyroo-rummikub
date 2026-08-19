@@ -359,6 +359,14 @@ test.describe("coger la combinación entera", () => {
       await hostPage.getByRole("button", { name: "Repartir a 2" }).click();
       await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
 
+      // Quien empieza sale por sorteo. Si no le toca a esta pantalla, la mesa
+      // no admite nada y el gesto no probaria lo que pretende.
+      if (!(await hostPage.getByRole("button", { name: "Robar" }).isEnabled())) {
+        await host.close();
+        await guest.context.close();
+        continue;
+      }
+
       const rack = await rackOf(hostPage);
       let cual = -1;
       for (let i = 0; i < rack.length; i++) {
@@ -481,5 +489,62 @@ async function sentarADos(browser: Browser) {
   const leToca = await uno.getByRole("button", { name: "Robar" }).isEnabled();
   return { jugando: leToca ? uno : dos, esperando: leToca ? dos : uno };
 }
+
+test("la combinación bajada se lleva entera a otra fila", async ({ browser }) => {
+  // Mover un grupo de fila no hacia nada cuando la de origen se quedaba vacia:
+  // al desaparecer, las de despues se corrian un puesto y el destino apuntaba
+  // a la nada. Esto lo comprueba con el gesto de verdad, no con la funcion.
+  for (let intento = 0; intento < 10; intento++) {
+    const host = await browser.newContext({ hasTouch: true });
+    const hostPage = await host.newPage();
+    const code = await createRoom(hostPage);
+    await hostPage.getByPlaceholder("Tu nombre").fill("Ana");
+    await hostPage.getByRole("button", { name: "Sentarme a la mesa" }).click();
+    const guest = await seatPlayer(browser, `/g/${code}`, "Beto");
+    await hostPage.getByRole("button", { name: "Repartir a 2" }).click();
+    await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
+
+    const rack = await rackOf(hostPage);
+    const leToca = await hostPage.getByRole("button", { name: "Robar" }).isEnabled();
+    const cual = leToca ? rack.findIndex((_, i) => runAround(rack, i).length >= 3) : -1;
+    if (cual < 0) {
+      await host.close();
+      await guest.context.close();
+      continue;
+    }
+    const esperado = runAround(rack, cual);
+
+    // Una sola pulsación larga y se levantan todas las que cumplen regla.
+    await hostPage
+      .locator(`.rack__ledge .tile[data-tile="${rack[cual]}"]`)
+      .click({ delay: 500 });
+    await expect(hostPage.locator(".tile--picked")).toHaveCount(esperado.length);
+    await hostPage.locator(".tray--new").click();
+    await expect(hostPage.locator(".felt__sets .tray:not(.tray--new) .tile")).toHaveCount(
+      esperado.length,
+    );
+
+    // Y ya en la mesa, la combinación entera se lleva a otra fila de un gesto.
+    await hostPage
+      .locator(`.felt__sets .tile[data-tile="${esperado[0]}"]`)
+      .click({ delay: 500 });
+    await expect(hostPage.locator(".tile--picked")).toHaveCount(esperado.length);
+    await hostPage.locator(".tray--new").click();
+
+    // La fila vieja desaparece al vaciarse y las fichas siguen siendo las
+    // mismas: ni se pierden ni se quedan a medio camino.
+    await expect(
+      hostPage.locator(".felt__sets .tray:not(.tray--new)"),
+    ).toHaveCount(1);
+    await expect(hostPage.locator(".felt__sets .tray:not(.tray--new) .tile")).toHaveCount(
+      esperado.length,
+    );
+
+    await host.close();
+    await guest.context.close();
+    return;
+  }
+  test.skip(true, "ninguna mano de diez repartos traía una combinación hecha");
+});
 
 const HORIZONTAL = { width: 900, height: 420 };

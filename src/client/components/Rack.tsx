@@ -26,7 +26,6 @@ type RackProps = {
 
 /** Lo que ocupa un hueco de separación, medido en fichas. */
 const GAP_TILES = 0.55;
-const SIN_CORTES: number[] = [];
 
 export function Rack({
   rack,
@@ -45,14 +44,14 @@ export function Rack({
 
   /**
    * Los huecos entre lo que ya cumple regla y lo suelto, como en el atril de
-   * madera. Mientras tienes una ficha en la mano no se recalculan: que se
-   * abrieran y cerraran huecos debajo del dedo haría fallar el sitio donde
-   * quieres soltarla.
+   * madera.
+   *
+   * Solo dependen de qué fichas hay y en qué orden, así que no se mueven
+   * mientras arrastras: la ficha levantada sigue contando. Ocultarlos al
+   * levantarla parecía más limpio y era peor —el atril se recolocaba a media
+   * pulsación y el clic siguiente caía un dedo más abajo del que querías.
    */
-  const cortes = useMemo(
-    () => (grab.holding ? SIN_CORTES : rackBlocks(rack)),
-    [rack, grab.holding],
-  );
+  const cortes = useMemo(() => rackBlocks(rack), [rack]);
   const corte = useMemo(() => new Set(cortes), [cortes]);
 
   // El atril tampoco se desplaza: con veinte fichas encogen hasta caber. Los
