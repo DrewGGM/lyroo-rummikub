@@ -37,10 +37,8 @@ import { buildView } from "../protocol/view";
 
 type SocketAttachment = { playerId: string };
 
-/** Sondeo de limpieza mientras la sala está parada. */
-const IDLE_SWEEP_MS = 3 * 60 * 60 * 1000;
-/** Una sala sin actividad se borra pasado este tiempo. */
-const ROOM_TTL_MS = 12 * 60 * 60 * 1000;
+/** Una sala que nadie toca se borra pasado este tiempo. */
+const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 /** Margen para no dar un turno por vencido antes de tiempo. */
 const ALARM_SLACK_MS = 250;
 /** Ninguna alarma se programa más cerca que esto: en el pasado, jamás. */
@@ -53,7 +51,22 @@ export class GameRoom extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    ctx.storage.sql.exec(`
+    this.#prepareSchema();
+    // Los pings del navegador se contestan en el borde: mantienen viva la
+    // conexión sin despertar al objeto ni facturar tiempo.
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair(JSON.stringify({ type: "ping" }), JSON.stringify({ type: "pong" })),
+    );
+  }
+
+  /**
+   * Deja las tablas listas. Se llama al construir el objeto y también después
+   * de borrar una sala: `deleteAll()` se lleva la base entera, y sin volver a
+   * crearlas cualquier petición posterior —alguien abriendo un enlace viejo—
+   * reventaría en vez de contestar que esa sala ya no existe.
+   */
+  #prepareSchema(): void {
+    this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS room (
         id INTEGER PRIMARY KEY,
         state TEXT NOT NULL,
@@ -64,11 +77,6 @@ export class GameRoom extends DurableObject<Env> {
         token TEXT NOT NULL UNIQUE
       );
     `);
-    // Los pings del navegador se contestan en el borde: mantienen viva la
-    // conexión sin despertar al objeto ni facturar tiempo.
-    ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair(JSON.stringify({ type: "ping" }), JSON.stringify({ type: "pong" })),
-    );
   }
 
   // --- API para el Worker --------------------------------------------------
@@ -182,6 +190,7 @@ export class GameRoom extends DurableObject<Env> {
     if (!watching && now - this.#updatedAt() >= ROOM_TTL_MS) {
       for (const socket of this.ctx.getWebSockets()) socket.close(1001, "Sala cerrada");
       this.ctx.storage.deleteAll();
+      this.#prepareSchema();
       this.#cached = null;
       return;
     }
@@ -212,7 +221,6 @@ export class GameRoom extends DurableObject<Env> {
           view: buildView(next, existing, Date.now()),
         });
         this.#broadcast(next, [], ws);
-        this.#scheduleAlarm(next);
         return;
       }
     }
@@ -324,7 +332,6 @@ export class GameRoom extends DurableObject<Env> {
 
     this.#save(transition.state);
     this.#broadcast(transition.state, transition.events);
-    this.#scheduleAlarm(transition.state);
   }
 
   /**
@@ -404,6 +411,13 @@ export class GameRoom extends DurableObject<Env> {
     return this.#cached;
   }
 
+  /**
+   * Guarda el estado y deja siempre una cita pendiente.
+   *
+   * Programar la alarma aquí y no en cada sitio que guarda evita el olvido que
+   * ya tuvimos: una sala creada donde nadie llegó a repartir se quedaba sin
+   * ninguna cita y no se borraba nunca.
+   */
   #save(state: GameState): void {
     this.#cached = state;
     this.ctx.storage.sql.exec(
@@ -412,6 +426,7 @@ export class GameRoom extends DurableObject<Env> {
       JSON.stringify(state),
       Date.now(),
     );
+    this.#scheduleAlarm(state);
   }
 
   #updatedAt(): number {
@@ -433,13 +448,23 @@ export class GameRoom extends DurableObject<Env> {
   #scheduleAlarm(state: GameState): void {
     const now = Date.now();
     const watching = this.ctx.getWebSockets().length > 0;
-    const enJuego =
-      watching && state.status === "playing" && state.turnEndsAt !== null;
 
-    const when = enJuego
-      ? Math.max(state.turnEndsAt!, now + ALARM_FLOOR_MS)
-      : now + IDLE_SWEEP_MS;
-    this.ctx.storage.setAlarm(when);
+    // Con alguien mirando y la partida en marcha, la cita es el fin del turno.
+    if (watching && state.status === "playing" && state.turnEndsAt !== null) {
+      this.ctx.storage.setAlarm(Math.max(state.turnEndsAt, now + ALARM_FLOOR_MS));
+      return;
+    }
+
+    // Si no, la única cita pendiente es la de borrar la sala, y se pone en la
+    // hora exacta: así una mesa abandonada despierta una sola vez, para morir.
+    //
+    // Cuando esa hora ya pasó pero la sala sigue viva —hay gente conectada sin
+    // tocar nada— hay que aplazar de verdad. Citarla "ya mismo" la haría
+    // despertarse en bucle, que es justo lo que se comió el cupo de dos días.
+    const muerte = this.#updatedAt() + ROOM_TTL_MS;
+    this.ctx.storage.setAlarm(
+      muerte > now + ALARM_FLOOR_MS ? muerte : now + ROOM_TTL_MS,
+    );
   }
 }
 

@@ -218,6 +218,44 @@ describe("la alarma nunca se repite sola", () => {
     }
   });
 
+  it("borra la mesa abandonada al cumplirse el plazo", async () => {
+    const { code } = await dealtRoom(30);
+    await evictDurableObject(roomStub(code), { webSockets: "close" });
+
+    // Se envejece la sala dos horas y pico sin tocar nada.
+    await runInDurableObject(roomStub(code), (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE room SET updated_at = ?",
+        Date.now() - 2.5 * 60 * 60 * 1000,
+      );
+    });
+    await runDurableObjectAlarm(roomStub(code));
+
+    // Y la sala contesta que ya no existe, en vez de reventar: quien abra el
+    // enlace viejo tiene que encontrarse un "no existe", no un error.
+    expect(await roomStub(code).summary()).toEqual({ exists: false });
+  });
+
+  it("no se cita en bucle si la sala lleva horas abierta con gente", async () => {
+    // Una sala vieja pero con alguien conectado no se puede borrar. Si la cita
+    // de borrado ya pasó, hay que aplazarla de verdad: ponerla "ya mismo"
+    // devolvería el bucle que se comió el cupo. Sin repartir, para que mande
+    // el plazo de limpieza y no el reloj del turno.
+    const code = await createRoom();
+    await join(code, "Ana");
+    await runInDurableObject(roomStub(code), (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE room SET updated_at = ?",
+        Date.now() - 5 * 60 * 60 * 1000,
+      );
+    });
+
+    await runDurableObjectAlarm(roomStub(code));
+
+    const falta = (await proximaAlarma(code))! - Date.now();
+    expect(falta).toBeGreaterThan(60_000);
+  });
+
   it("mantiene el reloj mientras alguien mira", async () => {
     const { code } = await dealtRoom(30);
     const cita = await proximaAlarma(code);
