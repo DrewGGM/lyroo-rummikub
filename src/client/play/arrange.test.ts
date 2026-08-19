@@ -90,6 +90,28 @@ describe("mover un grupo de fichas", () => {
     expect(next.rack).toEqual([B(1), R(3), R(4), R(5)]);
   });
 
+  it("lleva un grupo de una fila a otra", () => {
+    const base = layout([[R(3), R(4), R(5), R(6)], [B(9), K(9), R(9)]], []);
+    const next = moveTiles(base, [R(5), R(6)], { kind: "set", set: 1, index: 3 });
+    expect(next.board[0]).toEqual([R(3), R(4)]);
+    expect(next.board[1]).toEqual([B(9), K(9), R(9), R(5), R(6)]);
+  });
+
+  it("mueve una fila entera a otra aunque la de origen desaparezca", () => {
+    // Al vaciarse, la fila de origen se va y las siguientes se corren un
+    // puesto: seguir el número de fila dejaba el grupo en el limbo.
+    const base = layout([[R(3), R(4), R(5)], [B(9), K(9), R(9)]], []);
+    const next = moveTiles(base, [R(3), R(4), R(5)], { kind: "set", set: 1, index: 3 });
+    expect(next.board).toHaveLength(1);
+    expect(next.board[0]).toEqual([B(9), K(9), R(9), R(3), R(4), R(5)]);
+  });
+
+  it("inserta delante de la ficha señalada aunque se corran las filas", () => {
+    const base = layout([[R(3), R(4), R(5)], [B(9), K(9), R(9)]], []);
+    const next = moveTiles(base, [R(3), R(4), R(5)], { kind: "set", set: 1, index: 1 });
+    expect(next.board[0]).toEqual([B(9), R(3), R(4), R(5), K(9), R(9)]);
+  });
+
   it("ignora una lista vacía", () => {
     const base = layout([[R(3), R(4), R(5)]], []);
     expect(moveTiles(base, [], { kind: "new" })).toEqual(base);

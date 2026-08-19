@@ -20,6 +20,8 @@ type FeltProps = {
   canArrange: boolean;
   /** Quién está moviendo fichas ahora mismo, si no eres tú. */
   movedBy: string | null;
+  /** Puntos que te faltan para abrir, o null si ya abriste. */
+  opening: number | null;
 };
 
 export function Felt({
@@ -30,6 +32,7 @@ export function Felt({
   rejected,
   canArrange,
   movedBy,
+  opening,
 }: FeltProps) {
   const [ref, box] = useMeasuredBox<HTMLDivElement>();
 
@@ -70,6 +73,12 @@ export function Felt({
             ? "Suelta fichas aquí para montar tu jugada. Mantén pulsada una ficha del atril para coger la escalera entera."
             : "La mesa está vacía."}
         </p>
+      ) : opening !== null ? (
+        <p className="felt__hint">
+          Tu primera jugada tiene que sumar {opening} puntos con tus fichas
+          solas. Hasta que abras no puedes añadir nada a lo que ya hay en la
+          mesa, ni siquiera un comodín.
+        </p>
       ) : null}
 
       <div className="felt__sets">
@@ -83,6 +92,7 @@ export function Felt({
             broken={broken.includes(setIndex)}
             rejected={rejected.includes(setIndex)}
             canArrange={canArrange}
+            locked={canArrange && opening !== null && !set.some((id) => played.has(id))}
           />
         ))}
 
@@ -115,6 +125,8 @@ type TrayProps = {
   broken: boolean;
   rejected: boolean;
   canArrange: boolean;
+  /** Intocable: todavía no has hecho tu jugada inicial. */
+  locked: boolean;
 };
 
 function Tray({
@@ -125,6 +137,7 @@ function Tray({
   broken,
   rejected,
   canArrange,
+  locked,
 }: TrayProps) {
   const valid = !broken && readSet(set).length > 0;
   const targeted = grab.target?.kind === "set" && grab.target.set === setIndex;
@@ -134,6 +147,7 @@ function Tray({
   if (broken) classes.push("tray--broken");
   if (rejected) classes.push("tray--rejected");
   if (targeted) classes.push("tray--target");
+  if (locked) classes.push("tray--locked");
 
   return (
     <div
@@ -142,7 +156,7 @@ function Tray({
       data-set={setIndex}
       onClick={(event) => {
         event.stopPropagation();
-        if (canArrange && grab.holding) {
+        if (canArrange && !locked && grab.holding) {
           grab.dropOn({ kind: "set", set: setIndex, index: set.length });
         }
       }}

@@ -266,7 +266,7 @@ function comprobarConservacion(mesa: Mesa, mazo: number, contexto: string): void
  * ve. Con una partida avanzada es el fallo más fácil de colar.
  */
 async function comprobarQueCabe(pagina: Page, contexto: string): Promise<void> {
-  const medidas = await pagina.evaluate(() => {
+  const mirar = () => pagina.evaluate(() => {
     const felt = document.querySelector(".felt");
     const ficha = document.querySelector<HTMLElement>(".felt__sets .tile");
     if (!felt) return null;
@@ -276,15 +276,28 @@ async function comprobarQueCabe(pagina: Page, contexto: string): Promise<void> {
       visible: felt.clientHeight,
       ancho: felt.scrollWidth,
       visibleAncho: felt.clientWidth,
+      alcanzable: getComputedStyle(felt).overflowY !== "hidden",
       proporcion: caja && caja.width > 0 ? caja.height / caja.width : null,
     };
   });
-  if (!medidas) return;
 
-  expect(
-    medidas.alto,
-    `${contexto}: la mesa se sale por abajo (${medidas.alto} > ${medidas.visible})`,
-  ).toBeLessThanOrEqual(medidas.visible + 1);
+  let medidas = await mirar();
+  if (!medidas) return;
+  // La mesa tarda un instante en recolocarse tras cada jugada; solo cuenta
+  // como fallo si sigue sin caber cuando se ha asentado.
+  if (medidas.alto > medidas.visible + 1) {
+    await pagina.waitForTimeout(400);
+    medidas = (await mirar()) ?? medidas;
+  }
+
+  // Que no quepa es tolerable si se puede desplazar; lo que no vale es que
+  // quede cortada y no haya forma de llegar a ella.
+  if (medidas.alto > medidas.visible + 1) {
+    expect(
+      medidas.alcanzable,
+      `${contexto}: la mesa queda cortada y no se puede desplazar`,
+    ).toBe(true);
+  }
   expect(
     medidas.ancho,
     `${contexto}: la mesa se sale por un lado`,

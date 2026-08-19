@@ -205,8 +205,13 @@
 .felt {
   position: relative;
   min-width: 0;
-  /* Nunca se desplaza: las fichas encogen hasta que la mesa entera cabe. */
-  overflow: hidden;
+  /* Las fichas encogen hasta que la mesa entera cabe, así que normalmente esto
+     no hace falta. Pero si ni al tamaño mínimo entra —pantalla muy baja y
+     partida muy avanzada—, es mejor poder desplazar que dejar media mesa
+     cortada donde nadie la ve. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: var(--gap-3);
   margin: 0 var(--gap-3);
   border-radius: var(--radius-panel);
@@ -321,6 +326,13 @@
 .tray--target {
   background: var(--lamp-glow);
   box-shadow: inset 0 0 0 1px var(--lamp);
+}
+
+/* Antes de abrir, lo que ya está en la mesa no se toca. Se ve apagado para
+   que no haga falta intentarlo para descubrirlo. */
+.tray--locked {
+  opacity: 0.5;
+  filter: saturate(0.7);
 }
 
 /* Hueco para empezar una combinación nueva. */

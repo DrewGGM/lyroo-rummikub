@@ -100,34 +100,47 @@ export function moveTiles(
   }
 
   const moving = new Set(tiles);
-  const anchor = to.kind === "new" ? null : tileAt(layout, to);
-  // Soltar el grupo sobre una de sus propias fichas no significa nada.
-  if (anchor !== null && moving.has(anchor)) return layout;
+  const destino = to.kind === "set" ? layout.board[to.set] : null;
+  if (to.kind === "set" && !destino) return layout;
+
+  // La ficha ante la que hay que insertar, si la hay. Se apunta a la ficha y
+  // no al número: al sacar el grupo, los índices se corren.
+  const anclaje = to.kind === "set" ? (destino?.[to.index] ?? null) : null;
+  if (anclaje !== null && moving.has(anclaje)) return layout;
 
   const board = layout.board
     .map((set) => set.filter((id) => !moving.has(id)))
     .filter((set) => set.length > 0);
   const rack = layout.rack.filter((id) => !moving.has(id));
-  const trimmed: Layout = { board, rack };
 
-  if (to.kind === "new") {
+  if (to.kind === "new") return { board: [...board, tiles.slice()], rack };
+
+  if (to.kind === "rack") {
+    const anclaRack = layout.rack[to.index] ?? null;
+    const donde =
+      anclaRack !== null && !moving.has(anclaRack)
+        ? rack.indexOf(anclaRack)
+        : rack.length;
+    const siguiente = rack.slice();
+    siguiente.splice(donde < 0 ? rack.length : donde, 0, ...tiles);
+    return { board, rack: siguiente };
+  }
+
+  // La fila de destino se reconoce por las fichas que le quedan, no por su
+  // posición: si el grupo salía de otra fila que se ha quedado vacía, esa fila
+  // desaparece y todas las de después se corren un puesto.
+  const quedan = (destino ?? []).filter((id) => !moving.has(id));
+  const fila = board.findIndex((set) => quedan.some((id) => set.includes(id)));
+  if (fila < 0) {
+    // La fila de destino se ha ido entera con el grupo: pasa a ser una nueva.
     return { board: [...board, tiles.slice()], rack };
   }
 
-  const landing = anchor === null ? endOf(trimmed, to) : locate(trimmed, anchor);
-  if (!landing || landing.kind === "new") return layout;
-
-  if (landing.kind === "rack") {
-    const next = rack.slice();
-    next.splice(landing.index, 0, ...tiles);
-    return { board, rack: next };
-  }
-
-  const next = board.map((set) => set.slice());
-  const target = next[landing.set];
-  if (!target) return layout;
-  target.splice(landing.index, 0, ...tiles);
-  return { board: next, rack };
+  const siguiente = board.map((set) => set.slice());
+  const objetivo = siguiente[fila]!;
+  const donde = anclaje !== null ? objetivo.indexOf(anclaje) : objetivo.length;
+  objetivo.splice(donde < 0 ? objetivo.length : donde, 0, ...tiles);
+  return { board: siguiente, rack };
 }
 
 /** Dónde está una ficha ahora mismo. */
@@ -137,17 +150,6 @@ export function locate(layout: Layout, tile: TileId): Slot | null {
   for (const [set, tiles] of layout.board.entries()) {
     const index = tiles.indexOf(tile);
     if (index >= 0) return { kind: "set", set, index };
-  }
-  return null;
-}
-
-/** El final de la fila a la que apunta el destino. */
-function endOf(layout: Layout, to: Slot): Slot | null {
-  if (to.kind === "rack") return { kind: "rack", index: layout.rack.length };
-  if (to.kind === "set") {
-    const set = layout.board[to.set];
-    if (!set) return { kind: "new" };
-    return { kind: "set", set: to.set, index: set.length };
   }
   return null;
 }

@@ -139,7 +139,10 @@ function Seated({
   onLeave: () => void;
 }) {
   const isMyTurn = view.turnPlayerId === view.you;
-  const table = useTable(view.board, view.rack as string[]);
+  const yaAbrio = Boolean(
+    view.players.find((player) => player.id === view.you)?.hasMelded,
+  );
+  const table = useTable(view.board, view.rack as string[], yaAbrio);
   const grab = useGrab(
     table.place,
     table.placeMany,
@@ -190,7 +193,7 @@ function Seated({
     ? (view.players.find((player) => player.id === link.preview?.playerId)?.name ?? null)
     : null;
 
-  const needsOpening = !view.players.find((player) => player.id === view.you)?.hasMelded;
+  const needsOpening = !yaAbrio;
   const openingShort =
     needsOpening && table.touched && table.opening < view.rules.openingPoints;
   const canConfirm =
@@ -228,6 +231,7 @@ function Seated({
         rejected={rejectedSets}
         canArrange={isMyTurn}
         movedBy={isMyTurn ? null : moverName}
+        opening={isMyTurn && needsOpening ? view.rules.openingPoints : null}
       />
 
       <Rack

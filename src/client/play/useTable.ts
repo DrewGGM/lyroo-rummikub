@@ -51,6 +51,8 @@ export type Table = {
 export function useTable(
   serverBoard: Board,
   serverRack: readonly TileId[],
+  /** Si ya hiciste tu jugada inicial. Antes de eso la mesa es intocable. */
+  yaAbrio: boolean,
 ): Table {
   const baseline = useMemo<Layout>(
     () => ({ board: serverBoard, rack: serverRack }),
@@ -81,15 +83,29 @@ export function useTable(
     [baseline.board],
   );
 
+  /** Filas que ya estaban en la mesa antes de tu turno. */
+  const filasDeAntes = useMemo(() => {
+    const filas = new Set<number>();
+    layout.board.forEach((set, indice) => {
+      if (set.some((id) => onBoardBefore.has(id))) filas.add(indice);
+    });
+    return filas;
+  }, [layout.board, onBoardBefore]);
+
   const allows = useCallback(
     (from: Slot, to: Slot) => {
+      // Mientras no hayas abierto, la mesa no se toca: la jugada inicial se
+      // hace solo con tus fichas. Dejar montarlo para que el servidor lo
+      // rechace después no ayuda a nadie.
+      if (!yaAbrio && to.kind === "set" && filasDeAntes.has(to.set)) return false;
+
       if (to.kind !== "rack") return true;
       if (from.kind !== "set") return true;
       const tile = layout.board[from.set]?.[from.index];
       // Puedes recoger lo que tú acabas de bajar, no lo que ya estaba jugado.
       return tile !== undefined && !onBoardBefore.has(tile);
     },
-    [layout.board, onBoardBefore],
+    [layout.board, onBoardBefore, filasDeAntes, yaAbrio],
   );
 
   const remember = useCallback((previous: Layout) => {
@@ -98,6 +114,7 @@ export function useTable(
 
   const place = useCallback(
     (from: Slot, to: Slot) => {
+      if (!allows(from, to)) return;
       setLayout((current) => {
         if (to.kind === "rack" && from.kind === "set") {
           const tile = current.board[from.set]?.[from.index];
@@ -109,11 +126,12 @@ export function useTable(
         return next;
       });
     },
-    [onBoardBefore, remember],
+    [onBoardBefore, remember, allows],
   );
 
   const placeMany = useCallback(
     (tiles: readonly TileId[], to: Slot) => {
+      if (!yaAbrio && to.kind === "set" && filasDeAntes.has(to.set)) return;
       setLayout((current) => {
         if (to.kind === "rack" && tiles.some((id) => onBoardBefore.has(id))) {
           return current;
@@ -124,7 +142,7 @@ export function useTable(
         return next;
       });
     },
-    [onBoardBefore, remember],
+    [onBoardBefore, remember, filasDeAntes, yaAbrio],
   );
 
   const runAt = useCallback(
