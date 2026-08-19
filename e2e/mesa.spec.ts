@@ -462,6 +462,40 @@ test("fuera de turno el atril es tuyo pero la mesa no se toca", async ({ browser
     .toEqual(despues);
 });
 
+test("el atril se arrastra fuera de turno", async ({ browser }) => {
+  const { esperando } = await sentarADos(browser);
+
+  const fichas = esperando.locator(".rack__ledge .tile");
+  const antes = await fichas.allInnerTexts();
+  // Arrastrar la última al principio: el gesto, no el botón de ordenar.
+  await fichas.last().hover();
+  await esperando.mouse.down();
+  const destino = (await fichas.first().boundingBox())!;
+  await esperando.mouse.move(destino.x + 2, destino.y + destino.height / 2, { steps: 12 });
+  await esperando.mouse.up();
+
+  const despues = await fichas.allInnerTexts();
+  expect(despues).not.toEqual(antes);
+  expect(despues.slice().sort()).toEqual(antes.slice().sort());
+});
+
+test("quien mira ve marcado lo que el otro va poniendo", async ({ browser }) => {
+  const { jugando, esperando } = await sentarADos(browser);
+
+  // Quien juega baja lo que pueda; basta con que aparezca algo en la mesa.
+  const rack = await rackOf(jugando);
+  const cual = rack.findIndex((_, i) => runAround(rack, i).length >= 3);
+  test.skip(cual < 0, "esta mano no traía ninguna combinación hecha");
+
+  await jugando.locator(`.rack__ledge .tile[data-tile="${rack[cual]}"]`).click({ delay: 500 });
+  await jugando.locator(".tray--new").click();
+  const bajadas = runAround(rack, cual).length;
+
+  // Quien mira lo ve aparecer, y lo ve marcado: es lo que acaba de ponerse.
+  await expect(esperando.locator(".felt__sets .tile")).toHaveCount(bajadas);
+  await expect(esperando.locator(".felt__sets .tile--fresh")).toHaveCount(bajadas);
+});
+
 /** Deja una mesa de dos empezada y dice a quién le toca. */
 async function sentarADos(browser: Browser) {
   const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();

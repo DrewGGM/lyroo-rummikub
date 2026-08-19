@@ -97,15 +97,43 @@
     0 0 0 2px var(--lamp);
 }
 
-/* Fichas que has bajado en este turno y aún puedes recuperar. */
+/*
+ * Fichas recién puestas sobre la mesa.
+ *
+ * Era una rayita de dos píxeles bajo el número y no se veía: con la mesa llena,
+ * encontrar qué acaba de aparecer costaba más que jugar. Ahora la ficha va
+ * rodeada de luz.
+ *
+ * El resplandor es un elemento aparte y no la sombra de la ficha, para que
+ * levantarla siga viéndose como levantarla: si compartieran `box-shadow`, uno
+ * de los dos estados borraría al otro.
+ */
 .tile--fresh::after {
   content: "";
   position: absolute;
-  inset: auto 18% calc(var(--tile-w) * 0.05) 18%;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--lamp);
-  opacity: 0.85;
+  inset: -2px;
+  border-radius: calc(var(--radius-tile) + 2px);
+  border: 2px solid var(--lamp);
+  box-shadow:
+    0 0 10px 1px rgb(245 185 66 / 0.55),
+    inset 0 0 6px rgb(245 185 66 / 0.35);
+  pointer-events: none;
+  animation: recien 2.4s ease-in-out infinite;
+}
+
+@keyframes recien {
+  50% {
+    box-shadow:
+      0 0 16px 4px rgb(245 185 66 / 0.8),
+      inset 0 0 8px rgb(245 185 66 / 0.5);
+  }
+}
+
+/* Con el movimiento reducido la luz se queda quieta, pero no desaparece. */
+@media (prefers-reduced-motion: reduce) {
+  .tile--fresh::after {
+    animation: none;
+  }
 }
 
 .tile--dealing {

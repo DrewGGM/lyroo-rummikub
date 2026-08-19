@@ -43,6 +43,14 @@ export type GameState = {
   /** Índice en `players` de quien tiene el turno. */
   turnIndex: number;
   board: Board;
+  /**
+   * Las fichas de la última jugada confirmada.
+   *
+   * Está para que todos vean qué acaba de poner quien jugó, no solo quien lo
+   * puso. Con la mesa llena, enterarte de que alguien ha añadido un 7 en la
+   * cuarta fila mirando fijamente es imposible.
+   */
+  lastPlayed: TileId[];
   pool: TileId[];
   /** La variante que se juega en esta mesa. Se fija antes de repartir. */
   rules: RoomRules;
@@ -54,6 +62,21 @@ export type GameState = {
   round: number;
   log: GameEvent[];
 };
+
+/**
+ * Completa un estado guardado antes de que existieran los campos de ahora.
+ *
+ * Las salas viven en el disco del Durable Object y sobreviven a los despliegues:
+ * una partida empezada con la versión anterior se rehidrata con la nueva. Sin
+ * esto, añadir un campo bastaba para que la sala reventara al leerse, con gente
+ * dentro y a mitad de partida.
+ */
+export function hydrateGame(raw: unknown): GameState {
+  const state = raw as Omit<GameState, "lastPlayed"> & {
+    lastPlayed?: TileId[];
+  };
+  return { ...state, lastPlayed: state.lastPlayed ?? [] };
+}
 
 export type Failure = { readonly ok: false; readonly error: Rejection };
 export type Success = {
@@ -71,6 +94,7 @@ export function createGame(code: string, rules: RoomRules = DEFAULT_RULES): Game
     players: [],
     turnIndex: 0,
     board: [],
+    lastPlayed: [],
     pool: [],
     rules: sanitizeRules(rules),
     turnEndsAt: null,
@@ -233,6 +257,7 @@ export function startGame(
   }));
   state.pool = pool;
   state.board = [];
+  state.lastPlayed = [];
   state.status = "playing";
   state.turnIndex = 0;
   state.passStreak = 0;
@@ -268,6 +293,7 @@ export function commitTurn(
   if (!outcome.ok) return { ok: false, error: outcome.error };
 
   state.board = outcome.board;
+  state.lastPlayed = outcome.played.slice();
   state.players = state.players.map((entry) =>
     entry.id === player.id
       ? { ...entry, rack: outcome.rack, hasMelded: true }
@@ -394,6 +420,7 @@ export function prepareRematch(state: GameState, actorId: string): Transition {
   }
   state.status = "lobby";
   state.board = [];
+  state.lastPlayed = [];
   state.pool = [];
   state.winnerId = null;
   state.turnEndsAt = null;

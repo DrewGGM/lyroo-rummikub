@@ -7,8 +7,14 @@
  */
 
 import { canonicalOrder, readSet } from "../../engine/sets";
-import { parseTile } from "../../engine/tiles";
-import { MIN_SET_SIZE, type Board, type TileId } from "../../engine/types";
+import { buildJokerId, buildTileId, parseTile } from "../../engine/tiles";
+import {
+  COLORS,
+  MAX_VALUE,
+  MIN_SET_SIZE,
+  type Board,
+  type TileId,
+} from "../../engine/types";
 
 export type Slot =
   | { readonly kind: "rack"; readonly index: number }
@@ -156,9 +162,41 @@ export function locate(layout: Layout, tile: TileId): Slot | null {
 }
 
 /**
+ * Una ficha de cada clase, para probar si a un par le falta poco.
+ *
+ * La copia 99 no sale en ningún mazo --el más grande tiene cuatro-- así que
+ * ninguna de estas puede coincidir con una ficha de verdad de la partida.
+ */
+const COPIA_IMPOSIBLE = 99;
+const ALFABETO: TileId[] = [
+  ...COLORS.flatMap((color) =>
+    Array.from(
+      { length: MAX_VALUE },
+      (_, i) => buildTileId(color, i + 1, COPIA_IMPOSIBLE),
+    ),
+  ),
+  buildJokerId(COPIA_IMPOSIBLE),
+];
+
+/**
+ * Si a estas fichas les basta una más para ser grupo o escalera.
+ *
+ * Se prueba a añadir una de cada clase en vez de razonar sobre colores y
+ * valores: `readSet` ya sabe de escaleras, grupos y comodines, y repetir esa
+ * lógica aquí sería tener dos sitios donde equivocarse.
+ */
+function leFaltaUna(tiles: readonly TileId[]): boolean {
+  return ALFABETO.some((extra) => readSet([...tiles, extra]).length > 0);
+}
+
+/**
  * La combinación más larga que se puede formar con las fichas que rodean a la
  * que has dejado pulsada, sin saltarse ninguna. Es el atajo para bajar una
  * escalera entera de una vez en lugar de ficha a ficha.
+ *
+ * Con dos basta. Una pareja no es combinación todavía, pero si le falta una
+ * sola ficha para serlo, moverla junta es justo lo que uno quiere: se lleva el
+ * 5-6 a la mesa donde está el 7, o el par de sietes al grupo que los espera.
  */
 export function runAround(rack: readonly TileId[], index: number): TileId[] {
   if (index < 0 || index >= rack.length) return [];
@@ -167,9 +205,14 @@ export function runAround(rack: readonly TileId[], index: number): TileId[] {
   for (let start = 0; start <= index; start++) {
     for (let end = rack.length - 1; end >= index; end--) {
       const span = end - start + 1;
-      if (span < MIN_SET_SIZE || span <= best.length) break;
+      if (span < 2 || span <= best.length) break;
       const candidate = rack.slice(start, end + 1);
-      if (readSet(candidate).length > 0) {
+      // La combinación entera manda; la pareja solo se acepta a falta de algo
+      // mejor, y el bucle ya prueba primero los tramos más largos.
+      const vale =
+        readSet(candidate).length > 0 ||
+        (span === 2 && leFaltaUna(candidate));
+      if (vale) {
         best = candidate;
         break;
       }

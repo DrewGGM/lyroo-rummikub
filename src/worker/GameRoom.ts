@@ -17,6 +17,7 @@ import {
   commitTurn,
   createGame,
   drawTile,
+  hydrateGame,
   prepareRematch,
   setConnected,
   setRules,
@@ -407,7 +408,9 @@ export class GameRoom extends DurableObject<Env> {
       .toArray();
     const raw = rows[0]?.state;
     if (!raw) return null;
-    this.#cached = JSON.parse(raw) as GameState;
+    // Las salas sobreviven a los despliegues: lo guardado puede ser de una
+    // versión anterior y le pueden faltar campos.
+    this.#cached = hydrateGame(JSON.parse(raw));
     return this.#cached;
   }
 

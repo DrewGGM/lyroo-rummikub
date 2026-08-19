@@ -311,3 +311,32 @@ describe("tu orden del atril se respeta", () => {
     expect(salida.slice().sort()).toEqual(delServidor.slice().sort());
   });
 });
+
+describe("la pulsación larga también levanta parejas", () => {
+  it("coge dos seguidas del mismo color a las que solo les falta una", () => {
+    const atril = [R(5), R(6), B(11)];
+    expect(runAround(atril, 0)).toEqual([R(5), R(6)]);
+  });
+
+  it("coge la pareja del mismo número", () => {
+    const atril = [K(2), R(7), B(7), O(13)];
+    expect(runAround(atril, 1)).toEqual([R(7), B(7)]);
+  });
+
+  it("prefiere la combinación entera antes que la pareja", () => {
+    const atril = [R(5), R(6), R(7), B(11)];
+    expect(runAround(atril, 0)).toEqual([R(5), R(6), R(7)]);
+  });
+
+  it("no coge dos que no van juntas de ninguna manera", () => {
+    expect(runAround([R(5), B(11)], 0)).toEqual([]);
+  });
+
+  it("no coge dos del mismo color y número, que nunca serán grupo", () => {
+    expect(runAround([R(7), R(7, 1)], 0)).toEqual([]);
+  });
+
+  it("cuenta el comodín como pareja válida", () => {
+    expect(runAround([R(5), J()], 0)).toEqual([R(5), J()]);
+  });
+});

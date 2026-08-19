@@ -37,6 +37,8 @@ export type GameView = {
   readonly turnEndsAt: number | null;
   readonly rules: RoomRules;
   readonly board: Board;
+  /** Las fichas de la última jugada confirmada, para que se vean marcadas. */
+  readonly lastPlayed: readonly TileId[];
   readonly poolCount: number;
   readonly winnerId: string | null;
   /** El identificador de quien recibe esta vista. */

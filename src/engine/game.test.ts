@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hydrateGame,
   addPlayer,
   commitTurn,
   createGame,
@@ -318,5 +319,22 @@ describe("revancha", () => {
     if (!again.ok) return;
     expect(again.state.round).toBe(2);
     expect(again.state.players.every((p) => p.rack.length === HAND_SIZE)).toBe(true);
+  });
+});
+
+describe("una sala guardada por una versión anterior", () => {
+  it("se rehidrata aunque le falten campos nuevos", () => {
+    const partida = createGame("ABCDEF");
+    // Como se guardó antes de que existiera el campo.
+    const { lastPlayed, ...antiguo } = partida;
+    void lastPlayed;
+    const vuelta = hydrateGame(JSON.parse(JSON.stringify(antiguo)));
+    expect(vuelta.lastPlayed).toEqual([]);
+    expect(vuelta.code).toBe("ABCDEF");
+  });
+
+  it("no pisa lo que sí venía guardado", () => {
+    const partida = { ...createGame("ABCDEF"), lastPlayed: ["r5_0"] };
+    expect(hydrateGame(partida).lastPlayed).toEqual(["r5_0"]);
   });
 });

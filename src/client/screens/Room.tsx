@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ArrowLeft, Check, Copy, Hand, Layers, Share2, Users } from "lucide-react";
 
 import type { GameView } from "../../protocol";
+import type { Board, TileId } from "../../engine/types";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../../engine/game";
 import {
   HAND_SIZE_CHOICES,
@@ -150,7 +157,9 @@ function Seated({
     table.allows,
     table.runAt,
     table.sendHome,
-    isMyTurn,
+    // No es "si te toca", es "si estás jugando": el atril se coloca cuando
+    // quieras y la mesa la protege `allows`, no el gesto.
+    puedoOrdenar,
   );
 
   const secondsLeft = useTurnClock(view, link.clockSkew);
@@ -190,6 +199,16 @@ function Seated({
 
   // Mientras otro monta su jugada se ve su mesa en vivo; la tuya solo la tocas tú.
   const showing = !isMyTurn && link.preview ? link.preview.board : table.board;
+
+  /**
+   * Las fichas que se ven marcadas sobre el tapete.
+   *
+   * En tu turno son las que llevas bajadas y aún puedes recoger. Cuando juega
+   * otro son las que está poniendo ahora mismo —lo que su mesa tiene de más
+   * respecto a la confirmada—, y entre jugada y jugada, las de la última
+   * confirmada. Así todos ven qué acaba de aparecer, no solo quien lo puso.
+   */
+  const marcadas = quéSeAcabaDePoner(isMyTurn, table.played, view, showing);
   const moverName = link.preview
     ? (view.players.find((player) => player.id === link.preview?.playerId)?.name ?? null)
     : null;
@@ -228,7 +247,7 @@ function Seated({
       <Felt
         board={showing}
         grab={grab}
-        played={table.played}
+        played={marcadas}
         broken={isMyTurn ? table.broken : []}
         rejected={rejectedSets}
         canArrange={isMyTurn}
@@ -710,4 +729,27 @@ function useDealAnimation(view: GameView): boolean {
   }, [view.status, view.round]);
 
   return dealing;
+}
+
+/**
+ * Las fichas que se ven marcadas sobre el tapete.
+ *
+ * En tu turno son las que llevas bajadas y aún puedes recoger. Cuando juega
+ * otro, las que está poniendo ahora mismo --lo que su mesa tiene de más
+ * respecto a la confirmada-- y, entre jugada y jugada, las de la última
+ * confirmada. Así todos ven qué acaba de aparecer, no solo quien lo puso.
+ *
+ * Sin `useMemo` a propósito: esto se calcula después de un `return` anticipado
+ * y un hook ahí dentro rompe el orden de los hooks. Son cuarenta fichas.
+ */
+function quéSeAcabaDePoner(
+  isMyTurn: boolean,
+  played: ReadonlySet<TileId>,
+  view: GameView,
+  showing: Board,
+): ReadonlySet<TileId> {
+  if (isMyTurn) return played;
+  const firmes = new Set(view.board.flat());
+  const enVivo = showing.flat().filter((id) => !firmes.has(id));
+  return new Set(enVivo.length > 0 ? enVivo : view.lastPlayed);
 }
