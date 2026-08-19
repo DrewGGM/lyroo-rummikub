@@ -321,3 +321,20 @@
 @keyframes pulse {
   50% { opacity: 0.25; }
 }
+
+/* El aviso legal: presente y legible, pero sin competir con el juego. */
+.home__legal {
+  max-width: 32rem;
+  margin-top: var(--gap-2);
+  color: var(--chalk-dim);
+  opacity: 0.72;
+  font-size: var(--step-xs);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.home__legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -127,6 +127,19 @@ export function Home({ onEnter }: HomeProps) {
         Las reglas las decide el servidor, no el navegador: nadie puede jugar una
         ficha que no tiene.
       </p>
+
+      {/* El aviso va donde se ve, no escondido en el repositorio: quien abra
+          esto tiene que saber en la primera pantalla que no es la aplicación
+          oficial. Es lo que separa usar el nombre para decir a qué se juega de
+          dar a entender que hay una empresa detrás. */}
+      <p className="home__legal">
+        Proyecto personal de{" "}
+        <a href="https://andrewgarcia.dev" target="_blank" rel="noopener noreferrer">
+          Andrew García
+        </a>
+        , sin ánimo de lucro. Rummikub® es una marca registrada de terceros;
+        esta mesa no está afiliada ni respaldada por quienes la poseen.
+      </p>
     </main>
   );
 }

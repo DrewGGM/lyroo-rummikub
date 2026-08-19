@@ -178,6 +178,41 @@ MESA_URL=https://rummikub.andrewgarcia.dev npm run test:e2e
   actualiza sola. La partida vive en el servidor, así que ni la API ni el
   WebSocket se cachean jamás.
 
+## Licencia y marcas
+
+El código es mío y se publica bajo la **[PolyForm Noncommercial
+1.0.0](LICENSE)**: puedes leerlo, ejecutarlo, modificarlo y redistribuirlo
+libremente **para cualquier fin que no sea comercial**. Si quieres usarlo para
+ganar dinero, escríbeme y hablamos.
+
+Conviene saber que esa licencia **no es «open source»** en el sentido estricto
+de la OSI —ninguna licencia que prohíba el uso comercial lo es—, así que GitHub
+la marcará como no estándar. Está elegida a propósito: dice exactamente lo que
+quiero decir y está redactada para software, no para obras creativas como las
+Creative Commons.
+
+### Sobre el nombre
+
+**Rummikub® es una marca registrada de terceros. Este proyecto no está
+afiliado, patrocinado ni respaldado por quienes la poseen.** Los derechos
+cambiaron de manos el 1 de abril de 2026: Longshore Limited compró los derechos
+mundiales a Lemada Light Industries Ltd. —la empresa de la familia Hertzano,
+que publica el juego desde 1975—, pero esa compra **excluye expresamente las
+versiones digitales**, además de Israel, Estados Unidos y Canadá.
+
+Lo que hay aquí es una implementación propia, escrita desde cero, de las reglas
+del juego. Las reglas de un juego no son de nadie: la [Oficina de Copyright de
+Estados Unidos](https://www.copyright.gov/circs/circ33.pdf) es explícita en que
+el copyright no protege ni la idea de un juego, ni su nombre, ni el método de
+jugarlo. Lo que sí protege es la expresión concreta —los dibujos, el texto del
+reglamento, la caja— y nada de eso se ha copiado: el código, el diseño y hasta
+la ficha dibujada en SVG son originales.
+
+El nombre es harina de otro costal. Aquí se usa de forma descriptiva, para
+decir de qué juego son estas reglas, que es el uso que el derecho de marcas
+suele permitir. Aun así, si quien posee la marca pidiera que el proyecto se
+llame de otra manera, se cambia y ya está.
+
 ## Mapa del código
 
 ```

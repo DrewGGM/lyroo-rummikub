@@ -2,6 +2,8 @@
   "name": "lyroo-rummikub",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "Andrew García Mosquera (https://andrewgarcia.dev)",
   "type": "module",
   "scripts": {
     "dev": "vite",
