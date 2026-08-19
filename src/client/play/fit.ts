@@ -17,13 +17,19 @@ export const TILE_RATIO = 1.38;
 export type Box = { readonly width: number; readonly height: number };
 
 export type FitLimits = {
-  /** Por debajo de esto los números dejan de leerse. */
+  /**
+   * Por debajo de esto la ficha deja de poder cogerse con el dedo.
+   *
+   * Encoger sin límite hace que quepa todo pero que no se pueda jugar: una
+   * ficha de diecisiete píxeles no se acierta con la yema. Cuando ni con el
+   * mínimo cabe la mesa, se desplaza; es mejor deslizar que no poder agarrar.
+   */
   readonly min: number;
   /** Por encima de esto la mesa se ve desangelada en pantallas grandes. */
   readonly max: number;
 };
 
-export const BOARD_LIMITS: FitLimits = { min: 17, max: 46 };
+export const BOARD_LIMITS: FitLimits = { min: 26, max: 46 };
 
 /**
  * Lo que ocupa el hueco de "combinación nueva", medido en fichas.
@@ -33,7 +39,8 @@ export const BOARD_LIMITS: FitLimits = { min: 17, max: 46 };
  * El número sale del `min-width` que tiene en la hoja de estilos.
  */
 export const NEW_TRAY_TILES = 1.5;
-export const RACK_LIMITS: FitLimits = { min: 20, max: 52 };
+// El atril es donde más se manosea, así que ahí la ficha nunca baja tanto.
+export const RACK_LIMITS: FitLimits = { min: 30, max: 52 };
 
 /** Separaciones del tapete, todas proporcionales a la ficha. */
 function metrics(tile: number) {

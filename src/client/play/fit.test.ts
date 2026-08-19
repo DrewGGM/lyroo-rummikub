@@ -117,3 +117,24 @@ describe("el hueco de combinación nueva", () => {
     }
   });
 });
+
+describe("las fichas siguen siendo agarrables", () => {
+  it("nunca baja de lo que se puede coger con el dedo", () => {
+    // Con la mesa a rebosar en una pantalla pequeña, encoger sin límite haría
+    // que cupiera todo y no se pudiera jugar. Se prefiere deslizar.
+    for (const cuantas of [20, 40, 80]) {
+      expect(fitBoardTile(sets(cuantas, 4), VERTICAL)).toBeGreaterThanOrEqual(26);
+      expect(fitBoardTile(sets(cuantas, 4), HORIZONTAL)).toBeGreaterThanOrEqual(26);
+    }
+  });
+
+  it("el atril mantiene la ficha aún más grande", () => {
+    for (const cuantas of [20, 30, 45]) {
+      expect(fitRackTile(cuantas, { width: 390, height: 96 })).toBeGreaterThanOrEqual(30);
+    }
+  });
+
+  it("el mínimo del atril supera al del tapete", () => {
+    expect(RACK_LIMITS.min).toBeGreaterThan(BOARD_LIMITS.min);
+  });
+});
