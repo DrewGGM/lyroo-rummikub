@@ -5,17 +5,16 @@
  * que le queda. El servidor no se fía de nada de eso: comprueba que las fichas
  * se conservan exactamente, que solo han salido fichas del atril de quien juega,
  * que toda combinación sobre la mesa es legal, y que se respetan la jugada
- * inicial de 30 puntos y las reglas del comodín.
+ * inicial de 30 puntos.
  *
  * Esto es lo que hace imposible hacer trampas editando el JavaScript del
  * navegador: no existe ningún mensaje capaz de meter una ficha que no se tenía.
  */
 
 import { rejection, type Rejection, type RejectionCode } from "./errors";
-import { DEFAULT_RULES, type JokerRule } from "./rules";
+import { DEFAULT_RULES } from "./rules";
 import { canonicalOrder, readSet, setValue } from "./sets";
-import { isJoker, parseTile } from "./tiles";
-import type { Board, TileId, TileSet, TileSpec } from "./types";
+import type { Board, TileId, TileSet } from "./types";
 
 export type CommitInput = {
   readonly previousBoard: Board;
@@ -26,8 +25,6 @@ export type CommitInput = {
   readonly hasMelded: boolean;
   /** Puntos que exige la mesa para abrir. */
   readonly openingPoints?: number;
-  /** Qué variante del comodín se juega en esta mesa. */
-  readonly jokers?: JokerRule;
 };
 
 export type CommitOutcome =
@@ -87,62 +84,9 @@ function difference(from: readonly TileId[], remove: readonly TileId[]): TileId[
   return result;
 }
 
-function matchesSpec(id: TileId, spec: TileSpec): boolean {
-  const tile = parseTile(id);
-  return (
-    tile !== null &&
-    tile.kind === "number" &&
-    tile.color === spec.color &&
-    tile.value === spec.value
-  );
-}
-
 /** Clave estable de una combinación, independiente del orden de sus fichas. */
 function setKey(set: TileSet): string {
   return set.slice().sort().join(",");
-}
-
-/**
- * Regla oficial del comodín: mientras un comodín esté en una combinación, esa
- * combinación no se puede romper ni reordenar; solo se le pueden añadir fichas.
- * Para recuperar el comodín hay que sustituirlo por la ficha exacta que
- * representa, y esa combinación tiene que seguir estando sobre la mesa.
- *
- * Como una combinación con comodines admite varias lecturas, basta con que
- * alguna de ellas justifique lo que hizo el jugador.
- */
-function jokerRuleHolds(previousSet: TileSet, nextBoard: Board): boolean {
-  const jokers = previousSet.filter(isJoker);
-  if (jokers.length === 0) return true;
-
-  const reals = previousSet.filter((id) => !isJoker(id));
-
-  for (const reading of readSet(previousSet)) {
-    for (const candidate of nextBoard) {
-      const present = new Set(candidate);
-      if (!reals.every((id) => present.has(id))) continue;
-
-      const consumed = new Set(reals);
-      let holds = true;
-      for (const [index, jokerId] of jokers.entries()) {
-        if (present.has(jokerId)) {
-          consumed.add(jokerId);
-          continue;
-        }
-        const spec = reading.jokerAs[index];
-        const replacement = spec
-          ? candidate.find((id) => !consumed.has(id) && matchesSpec(id, spec))
-          : undefined;
-        if (!replacement) {
-          holds = false;
-          break;
-        }
-        consumed.add(replacement);
-      }
-      if (holds) return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -191,7 +135,6 @@ export function commitMove(input: CommitInput): CommitOutcome {
   }
 
   const openingPoints = input.openingPoints ?? DEFAULT_RULES.openingPoints;
-  const jokers = input.jokers ?? DEFAULT_RULES.jokers;
 
   let meldValue = 0;
   if (!input.hasMelded) {
@@ -203,15 +146,6 @@ export function commitMove(input: CommitInput): CommitOutcome {
     );
     if (!outcome.ok) return outcome;
     meldValue = outcome.value;
-  } else if (jokers === "strict") {
-    for (const previousSet of input.previousBoard) {
-      if (!jokerRuleHolds(previousSet, nextBoard)) {
-        return reject(
-          "JOKER_LOCKED",
-          "Una combinación con comodín solo admite fichas nuevas. Para recuperar el comodín, sustitúyelo por la ficha exacta que representa.",
-        );
-      }
-    }
   }
 
   return {

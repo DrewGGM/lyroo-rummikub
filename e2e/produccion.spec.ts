@@ -253,7 +253,6 @@ test.describe("variantes de la mesa", () => {
       turnSeconds: 60,
       openingPoints: 30,
       handSize: 14,
-      jokers: "strict",
     });
   });
 });

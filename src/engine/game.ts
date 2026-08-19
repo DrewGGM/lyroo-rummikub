@@ -264,7 +264,6 @@ export function commitTurn(
     nextRack: request.rack,
     hasMelded: player.hasMelded,
     openingPoints: state.rules.openingPoints,
-    jokers: state.rules.jokers,
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 

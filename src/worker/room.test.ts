@@ -152,6 +152,7 @@ describe("crear y encontrar salas", () => {
       turnSeconds: 99999,
       openingPoints: 1,
       handSize: 40,
+      // Una regla que ya no existe: tiene que caer sin arrastrar a las demás.
       jokers: "ninguno",
     });
     const { welcome } = await joinAs(code, "Ana");
@@ -159,7 +160,6 @@ describe("crear y encontrar salas", () => {
       turnSeconds: 60,
       openingPoints: 30,
       handSize: 14,
-      jokers: "strict",
     });
   });
 

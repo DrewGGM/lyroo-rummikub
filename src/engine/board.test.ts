@@ -206,7 +206,7 @@ describe("casos vistos jugando", () => {
   });
 });
 
-describe("regla del comodín", () => {
+describe("el comodín se mueve como cualquier otra ficha", () => {
   it("deja añadir fichas a una combinación con comodín", () => {
     const outcome = commit({
       previousBoard: [[R(3), R(4), J()]], // el comodín hace de r5
@@ -230,36 +230,37 @@ describe("regla del comodín", () => {
     expect(outcome.ok).toBe(true);
   });
 
-  it("no deja sacar el comodín sin sustituirlo", () => {
+  it("deja llevárselo a otra combinación sin sustituirlo", () => {
+    // La regla oficial no permite esto, y era la que más veces cortaba una
+    // jugada que el jugador veía clara. Se quitó a propósito: lo único que se
+    // exige es que la mesa entera siga siendo legal.
     const outcome = commit({
-      previousBoard: [[R(3), R(4), J()]],
-      previousRack: [R(9), B(9), K(9), R(2)],
+      previousBoard: [[R(3), R(4), R(5), J()]], // el comodín hace de r2 o r6
+      previousRack: [B(9), K(9)],
       nextBoard: [
-        [R(2), R(3), R(4)], // el comodín representaba r2 o r5, y aquí entra r2…
-        [R(9), B(9), K(9), J()],
+        [R(3), R(4), R(5)], // lo que queda sigue siendo escalera
+        [B(9), K(9), J()],
       ],
       nextRack: [],
     });
-    // …así que en realidad esto sí es legal: la lectura J = r2 lo justifica.
     expect(outcome.ok).toBe(true);
   });
 
-  it("rechaza romper una combinación con comodín sin sustituirlo", () => {
+  it("deja partir en dos una escalera larga con comodín", () => {
     const outcome = commit({
-      // Aquí el comodín solo puede ser el r5: está encerrado entre r4 y r6.
-      previousBoard: [[R(3), R(4), J(), R(6)]],
-      previousRack: [R(9), B(9), K(9), R(7)],
+      previousBoard: [[O(1), O(2), O(3), O(4), J(), O(6), O(7)]], // el comodín es el o5
+      previousRack: [O(9), R(9), K(9)],
       nextBoard: [
-        [R(3), R(4)], // combinación rota
-        [R(6), R(7), J()],
-        [R(9), B(9), K(9)],
+        [O(1), O(2), O(3)],
+        [O(4), J(), O(6), O(7)],
+        [O(9), R(9), K(9)],
       ],
       nextRack: [],
     });
-    expect(outcome.ok).toBe(false);
+    expect(outcome.ok).toBe(true);
   });
 
-  it("rechaza llevarse el comodín dejando la combinación descolocada", () => {
+  it("sigue rechazando lo que deja la mesa rota", () => {
     const outcome = commit({
       previousBoard: [[R(4), R(5), J(), R(7)]], // el comodín es el r6
       previousRack: [R(9), B(9), K(9), R(8)],

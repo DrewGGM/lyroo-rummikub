@@ -5,7 +5,6 @@ import type { GameView } from "../../protocol";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../../engine/game";
 import {
   HAND_SIZE_CHOICES,
-  JOKER_CHOICES,
   OPENING_CHOICES,
   TURN_SECONDS_CHOICES,
   type RoomRules,
@@ -424,24 +423,6 @@ function Lobby({
           ))}
         </Setting>
 
-        <Setting label="Comodín">
-          {JOKER_CHOICES.map((mode) => (
-            <Choice
-              key={mode}
-              on={view.rules.jokers === mode}
-              disabled={!isHost}
-              onPick={() => change({ jokers: mode })}
-            >
-              {mode === "strict" ? "Protegido" : "Libre"}
-            </Choice>
-          ))}
-        </Setting>
-
-        <p className="rules__note">
-          {view.rules.jokers === "strict"
-            ? "Regla oficial: una combinación con comodín no se rompe; para recuperarlo hay que sustituirlo por la ficha exacta que representa."
-            : "El comodín se mueve como cualquier otra ficha al recolocar la mesa."}
-        </p>
       </div>
 
       {isHost ? (

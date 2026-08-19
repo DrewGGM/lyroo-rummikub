@@ -8,7 +8,6 @@ export type RejectionCode =
   | "INVALID_SET"
   | "MELD_TOUCHES_BOARD"
   | "MELD_TOO_LOW"
-  | "JOKER_LOCKED"
   // Turnos y sala
   | "NOT_PLAYING"
   | "NOT_YOUR_TURN"

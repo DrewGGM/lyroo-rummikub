@@ -7,7 +7,6 @@
  * la variante que se juega esa noche.
  */
 
-export type JokerRule = "strict" | "free";
 
 export type RoomRules = {
   /** Segundos por turno. `null` es sin reloj: se juega sin prisa. */
@@ -16,26 +15,30 @@ export type RoomRules = {
   readonly openingPoints: number;
   /** Fichas que se reparten a cada jugador. */
   readonly handSize: number;
-  /**
-   * `strict` es la regla oficial: una combinación con comodín no se rompe ni
-   * se reordena, y para recuperarlo hay que sustituirlo por la ficha exacta.
-   * `free` deja mover el comodín como cualquier otra ficha.
-   */
-  readonly jokers: JokerRule;
 };
+
+/*
+ * El comodín no tiene regla propia.
+ *
+ * La tuvo: la oficial dice que una combinación con comodín no se rompe y que
+ * para recuperarlo hay que sustituirlo por la ficha exacta que representa. En
+ * la práctica es la regla que más veces corta una jugada que el jugador ve
+ * clarísima, y el aviso llegaba al confirmar, con la mesa ya montada. Se quitó
+ * a propósito: el comodín se mueve como cualquier otra ficha y lo único que se
+ * exige es lo de siempre --que todo lo que quede en la mesa sea grupo o
+ * escalera, y que no aparezcan ni desaparezcan fichas.
+ */
 
 export const DEFAULT_RULES: RoomRules = {
   turnSeconds: 60,
   openingPoints: 30,
   handSize: 14,
-  jokers: "strict",
 };
 
 /** Las opciones que se ofrecen en la sala, en el orden en que se muestran. */
 export const TURN_SECONDS_CHOICES: readonly (number | null)[] = [30, 60, 90, 120, null];
 export const OPENING_CHOICES: readonly number[] = [25, 30, 50];
 export const HAND_SIZE_CHOICES: readonly number[] = [14, 16];
-export const JOKER_CHOICES: readonly JokerRule[] = ["strict", "free"];
 
 /**
  * Devuelve unas reglas válidas a partir de lo que llegue por la red.
@@ -62,7 +65,6 @@ export function sanitizeRules(raw: unknown, base: RoomRules = DEFAULT_RULES): Ro
       base.openingPoints,
     ),
     handSize: pick(Number(value["handSize"]), HAND_SIZE_CHOICES, base.handSize),
-    jokers: pick(value["jokers"], JOKER_CHOICES, base.jokers),
   };
 }
 
@@ -76,6 +78,5 @@ export function describeRules(rules: RoomRules): string[] {
     rules.turnSeconds === null ? "sin reloj" : `${rules.turnSeconds}s por turno`,
     `abrir con ${rules.openingPoints}`,
     `${rules.handSize} fichas`,
-    rules.jokers === "strict" ? "comodín protegido" : "comodín libre",
   ];
 }
