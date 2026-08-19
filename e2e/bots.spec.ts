@@ -258,6 +258,48 @@ function comprobarConservacion(mesa: Mesa, mazo: number, contexto: string): void
   ).toBe(mazo);
 }
 
+/**
+ * La mesa cabe siempre en su hueco.
+ *
+ * Las fichas encogen conforme se llena el tapete, y si el cálculo se queda
+ * corto las últimas combinaciones quedan cortadas por abajo, donde nadie las
+ * ve. Con una partida avanzada es el fallo más fácil de colar.
+ */
+async function comprobarQueCabe(pagina: Page, contexto: string): Promise<void> {
+  const medidas = await pagina.evaluate(() => {
+    const felt = document.querySelector(".felt");
+    const ficha = document.querySelector<HTMLElement>(".felt__sets .tile");
+    if (!felt) return null;
+    const caja = ficha?.getBoundingClientRect();
+    return {
+      alto: felt.scrollHeight,
+      visible: felt.clientHeight,
+      ancho: felt.scrollWidth,
+      visibleAncho: felt.clientWidth,
+      proporcion: caja && caja.width > 0 ? caja.height / caja.width : null,
+    };
+  });
+  if (!medidas) return;
+
+  expect(
+    medidas.alto,
+    `${contexto}: la mesa se sale por abajo (${medidas.alto} > ${medidas.visible})`,
+  ).toBeLessThanOrEqual(medidas.visible + 1);
+  expect(
+    medidas.ancho,
+    `${contexto}: la mesa se sale por un lado`,
+  ).toBeLessThanOrEqual(medidas.visibleAncho + 1);
+
+  if (medidas.proporcion !== null) {
+    // Las fichas encogen enteras: si solo encogiera el ancho, dejarían de
+    // caber a lo alto aunque la cuenta dijera que sí.
+    expect(
+      medidas.proporcion,
+      `${contexto}: la ficha ha perdido su proporción`,
+    ).toBeCloseTo(1.38, 1);
+  }
+}
+
 /** Nadie puede tener una ficha repetida ni compartirla con la mesa. */
 function comprobarSinDuplicados(mesa: Mesa, contexto: string): void {
   const todas = [...mesa.board.flat(), ...mesa.rack];
@@ -377,6 +419,7 @@ test.describe("robots jugando", () => {
         const trasMirar = Date.now();
         comprobarConservacion(mesa, mazo, `partida ${partida}, turno ${turnos}`);
         comprobarSinDuplicados(mesa, `partida ${partida}, turno ${turnos}`);
+        await comprobarQueCabe(deQuien.pagina, `partida ${partida}, turno ${turnos}`);
 
         const jugada = decidir(mesa, 30);
         const trasDecidir = Date.now();

@@ -11,7 +11,7 @@
   display: grid;
   place-items: center;
   width: var(--tile-w);
-  height: var(--tile-h);
+  height: calc(var(--tile-w) * var(--tile-ratio));
   flex: 0 0 auto;
   border-radius: var(--radius-tile);
   background: linear-gradient(168deg, #fdf9f1 0%, var(--bone) 45%, var(--bone-edge) 100%);

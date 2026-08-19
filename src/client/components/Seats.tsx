@@ -36,12 +36,20 @@ export function Seats({ view, secondsLeft, movingId }: SeatsProps) {
               {player.name}
               {player.id === view.you ? " (tú)" : ""}
             </span>
-            {player.connected ? (
+            {!player.connected ? (
+              <WifiOff size={13} className="seat__away" aria-label="sin conexión" />
+            ) : isTurn && secondsLeft !== null ? (
+              // A quien le toca le importa el reloj más que sus fichas.
+              <span
+                className={`seat__seconds${secondsLeft <= 10 ? " seat__seconds--urgent" : ""}`}
+                aria-label={`${secondsLeft} segundos`}
+              >
+                {secondsLeft}s
+              </span>
+            ) : (
               <span className="seat__count">
                 {view.status === "playing" ? player.tileCount : ""}
               </span>
-            ) : (
-              <WifiOff size={13} className="seat__away" aria-label="sin conexión" />
             )}
           </div>
         );

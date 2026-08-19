@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { readSet } from "../../engine/sets";
 import type { Board, TileId } from "../../engine/types";
 import type { Slot } from "../play/arrange";
-import { fitBoardTile } from "../play/fit";
+import { fitBoardTile, NEW_TRAY_TILES } from "../play/fit";
 import { tileSizeStyle, useMeasuredBox } from "../play/useAutoFit";
 import type { Grab } from "../play/useGrab";
 import { Tile } from "./Tile";
@@ -35,10 +35,13 @@ export function Felt({
 
   // Las fichas encogen conforme se llena la mesa para que nunca haga falta
   // desplazar el tapete: en horizontal el alto es lo único que escasea.
-  const tile = useMemo(
-    () => fitBoardTile(board.map((set) => set.length), box),
-    [board, box],
-  );
+  const tile = useMemo(() => {
+    const anchos = board.map((set) => set.length);
+    // El hueco de "nueva" ocupa sitio en la misma fila: contarlo evita que
+    // empuje una fila de más y deje la última cortada.
+    if (canArrange) anchos.push(NEW_TRAY_TILES);
+    return fitBoardTile(anchos, box);
+  }, [board, box, canArrange]);
 
   const empty = board.length === 0;
 

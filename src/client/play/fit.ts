@@ -24,6 +24,15 @@ export type FitLimits = {
 };
 
 export const BOARD_LIMITS: FitLimits = { min: 17, max: 46 };
+
+/**
+ * Lo que ocupa el hueco de "combinación nueva", medido en fichas.
+ *
+ * Es un elemento más en la misma fila que las combinaciones, así que si no se
+ * cuenta puede empujar a una fila de más y dejar la última cortada por abajo.
+ * El número sale del `min-width` que tiene en la hoja de estilos.
+ */
+export const NEW_TRAY_TILES = 1.5;
 export const RACK_LIMITS: FitLimits = { min: 20, max: 52 };
 
 /** Separaciones del tapete, todas proporcionales a la ficha. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BOARD_LIMITS,
+  NEW_TRAY_TILES,
   fitBoardTile,
   fitRackTile,
   RACK_LIMITS,
@@ -93,5 +94,26 @@ describe("acomodar el atril", () => {
   it("no se rompe con una caja de tamaño cero", () => {
     expect(fitRackTile(14, { width: 0, height: 0 })).toBe(RACK_LIMITS.max);
     expect(fitBoardTile(sets(3), { width: 0, height: 0 })).toBe(BOARD_LIMITS.max);
+  });
+});
+
+describe("el hueco de combinación nueva", () => {
+  it("cuenta como sitio ocupado", () => {
+    const composicion = sets(9, 4);
+    const sinHueco = fitBoardTile(composicion, VERTICAL);
+    const conHueco = fitBoardTile([...composicion, NEW_TRAY_TILES], VERTICAL);
+    expect(conHueco).toBeLessThanOrEqual(sinHueco);
+  });
+
+  it("todo sigue cabiendo con el hueco puesto", () => {
+    for (const cuantas of [4, 8, 12, 18]) {
+      const composicion = [...sets(cuantas, 4), NEW_TRAY_TILES];
+      const tile = fitBoardTile(composicion, VERTICAL);
+      if (tile === BOARD_LIMITS.min) continue;
+      const alto = tile * TILE_RATIO + tile * 0.14 * 2 + tile * 0.26;
+      expect(trayRows(composicion, tile, VERTICAL.width) * alto).toBeLessThanOrEqual(
+        VERTICAL.height + 0.5,
+      );
+    }
   });
 });
