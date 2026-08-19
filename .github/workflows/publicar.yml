@@ -18,7 +18,7 @@ jobs:
   comprobar:
     name: Pruebas
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -44,8 +44,16 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      # El navegador y las librerías del sistema van por separado a propósito:
+      # instalar las librerías baja paquetes de Ubuntu y a veces tarda quince
+      # minutos, así que solo se hace cuando la caché no trae ya el navegador.
       - name: Instalar navegador
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+
+      - name: Librerías del sistema
+        if: steps.navegadores.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        run: npx playwright install-deps chromium
 
       - name: Partida entre dos navegadores
         run: npm run test:e2e
