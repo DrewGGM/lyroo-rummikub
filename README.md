@@ -97,10 +97,20 @@ Todo dentro del plan gratuito de Cloudflare:
 | Tiempo de cómputo del objeto             | 13.000 GB-s/día  |
 | SQLite                                   | 5 GB             |
 
-Una partida de seis jugadores consume del orden de 600 peticiones entre
-conexiones, jugadas y avisos del temporizador. Es decir, unas **150 partidas al
-día** sin pagar nada. El cuello de botella son las peticiones al objeto, no el
-cómputo ni el almacenamiento.
+Medido contra el despliegue real: dos partidas completas de cuatro jugadores
+más la batería de pruebas de navegador salen por **480 peticiones**, o sea unas
+**200 por partida**. Con gente de verdad sube algo, porque mientras alguien
+recoloca la mesa se manda la vista previa a los demás, así que cuenta con
+**300-900 por partida** según lo que se manosee el tapete.
+
+Eso deja en el entorno de **100 a 300 partidas al día** sin pagar nada. El
+cuello de botella son las peticiones al objeto, no el cómputo ni el
+almacenamiento.
+
+Una mesa abandonada cuesta **una sola petición**: despierta a las dos horas,
+para borrarse. Conviene que siga siendo así —un objeto que se despierta solo en
+bucle vacía el cupo de un día en minutos—, y por eso hay tests que comprueban
+que ninguna alarma se programa en el pasado.
 
 Crear salas está limitado a 30 por minuto y dirección de origen, porque es lo
 único que consume presupuesto sin que nadie llegue a jugar.
