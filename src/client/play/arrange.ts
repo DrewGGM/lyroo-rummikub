@@ -175,6 +175,23 @@ export function runAround(rack: readonly TileId[], index: number): TileId[] {
   return best;
 }
 
+/**
+ * Dónde encaja una ficha sin pensarlo.
+ *
+ * Buscar a mano la combinación a la que va un 7 es el trabajo aburrido de cada
+ * turno. Se prueba a añadirla a lo que ya hay en la mesa y se elige la
+ * combinación que la admita; si no la admite ninguna, no se inventa nada.
+ */
+export function whereItFits(board: Board, tile: TileId): Slot | null {
+  for (const [set, fichas] of board.entries()) {
+    if (fichas.includes(tile)) continue;
+    if (readSet([...fichas, tile]).length > 0) {
+      return { kind: "set", set, index: fichas.length };
+    }
+  }
+  return null;
+}
+
 export function tileAt(layout: Layout, slot: Slot): TileId | null {
   if (slot.kind === "rack") return layout.rack[slot.index] ?? null;
   if (slot.kind === "set") return layout.board[slot.set]?.[slot.index] ?? null;

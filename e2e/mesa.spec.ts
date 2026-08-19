@@ -9,6 +9,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import { readSet, setValue } from "../src/engine/sets";
+import { runAround } from "../src/client/play/arrange";
 import type { TileId } from "../src/engine/types";
 
 type Seat = { context: BrowserContext; page: Page };
@@ -339,5 +340,91 @@ test.describe("final de partida", () => {
 
     await host.close();
     await guest.context.close();
+  });
+});
+
+
+test.describe("coger la combinación entera", () => {
+  test("un dedo que tiembla sigue cogiendo la escalera", async ({ browser }) => {
+    // Un dedo apoyado se mueve unos píxeles sin que su dueño lo note. Este
+    // test lo imita a propósito: con el umbral del ratón, el gesto se convertía
+    // en arrastre de una sola ficha y la pulsación larga no llegaba a saltar.
+    for (let intento = 0; intento < 10; intento++) {
+      const host = await browser.newContext({ hasTouch: true });
+      const hostPage = await host.newPage();
+      const code = await createRoom(hostPage);
+      await hostPage.getByPlaceholder("Tu nombre").fill("Ana");
+      await hostPage.getByRole("button", { name: "Sentarme a la mesa" }).click();
+      const guest = await seatPlayer(browser, `/g/${code}`, "Beto");
+      await hostPage.getByRole("button", { name: "Repartir a 2" }).click();
+      await expect(hostPage.locator(".rack__ledge .tile")).toHaveCount(14);
+
+      const rack = await rackOf(hostPage);
+      let cual = -1;
+      for (let i = 0; i < rack.length; i++) {
+        if (runAround(rack, i).length >= 3) {
+          cual = i;
+          break;
+        }
+      }
+      if (cual < 0) {
+        await host.close();
+        await guest.context.close();
+        continue;
+      }
+
+      const esperado = runAround(rack, cual);
+      const ficha = hostPage.locator(`.rack__ledge .tile[data-tile="${rack[cual]}"]`);
+
+      // `hover` espera a que la ficha esté quieta antes de colocar el puntero
+      // encima. Calcular las coordenadas a mano fallaba: al repartir, las
+      // fichas encogen para que la mesa quepa y se recolocan justo después de
+      // medirlas, así que el gesto caía en el hueco entre dos.
+      await ficha.hover();
+      const caja = (await ficha.boundingBox())!;
+      const x = caja.x + caja.width / 2;
+      const y = caja.y + caja.height / 2;
+
+      // Eventos táctiles de verdad, no de ratón: el margen que se le da al dedo
+      // es distinto del que se le da al puntero, y con el ratón esta prueba no
+      // comprobaría nada de lo que le pasa a una mano.
+      const cdp = await hostPage.context().newCDPSession(hostPage);
+      const dedo = (
+        type: "touchStart" | "touchMove" | "touchEnd",
+        px: number,
+        py: number,
+      ) =>
+        cdp.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints:
+            type === "touchEnd" ? [] : [{ x: px, y: py, radiusX: 12, radiusY: 12 }],
+        });
+
+      await dedo("touchStart", x, y);
+      // El temblor de una mano apoyada. Nueve o diez píxeles: más de lo que
+      // tolera un ratón y menos de lo que debería tolerar un dedo.
+      const temblor: [number, number][] = [[6, 5], [-4, 8], [9, -3], [-7, -6]];
+      for (const [dx, dy] of temblor) {
+        await dedo("touchMove", x + dx, y + dy);
+        await hostPage.waitForTimeout(90);
+      }
+      await hostPage.waitForTimeout(250);
+
+      const cogidas = await hostPage.locator(".tile--picked").count();
+      await dedo("touchEnd", x, y);
+
+      expect(cogidas, "fichas que se levantaron juntas").toBe(esperado.length);
+
+      // Y se colocan todas de una vez.
+      await hostPage.locator(".tray--new").click();
+      await expect(hostPage.locator(".felt__sets .tray:not(.tray--new) .tile")).toHaveCount(
+        esperado.length,
+      );
+
+      await host.close();
+      await guest.context.close();
+      return;
+    }
+    throw new Error("no salió ninguna mano con combinación contigua en 10 repartos");
   });
 });

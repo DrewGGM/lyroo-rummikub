@@ -20,10 +20,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TileId } from "../../engine/types";
 import type { Slot } from "./arrange";
 
-/** Distancia a partir de la cual el gesto deja de ser un toque. */
-const DRAG_THRESHOLD_PX = 7;
+/**
+ * Distancia a partir de la cual el gesto deja de ser un toque.
+ *
+ * Un dedo apoyado en el cristal nunca está quieto: se mueve varios píxeles sin
+ * que su dueño lo note. Con el umbral del ratón, aguantar pulsado se convertía
+ * en arrastre antes de que diera tiempo a coger la combinación entera, así que
+ * el dedo necesita más margen que el puntero.
+ */
+const DRAG_THRESHOLD_PX = { mouse: 6, touch: 14 };
+
 /** Cuánto hay que aguantar para coger la combinación entera. */
-const LONG_PRESS_MS = 380;
+const LONG_PRESS_MS = 350;
+
+/** Margen entre dos toques para que cuenten como uno doble. */
+const DOUBLE_TAP_MS = 320;
 
 export type Held = {
   /** Una ficha, o la combinación entera si mantuviste pulsado. */
@@ -49,6 +60,8 @@ type Gesture = {
   tile: TileId;
   from: Slot;
   pointerId: number;
+  /** Un dedo y un ratón no tienen la misma puntería. */
+  conDedo: boolean;
   startX: number;
   startY: number;
   offsetX: number;
@@ -59,8 +72,10 @@ export function useGrab(
   place: (from: Slot, to: Slot) => void,
   placeMany: (tiles: readonly TileId[], to: Slot) => void,
   allows: (from: Slot, to: Slot) => boolean,
-  /** La combinación contigua del atril alrededor de una posición. */
-  runAt: (index: number) => TileId[],
+  /** Lo que se coge junto al dejar pulsado en ese sitio. */
+  runAt: (slot: Slot) => TileId[],
+  /** Manda una ficha a la combinación donde encaje. Dice si encontró sitio. */
+  sendHome: (tile: TileId) => boolean,
   enabled: boolean,
 ): Grab {
   const [holding, setHolding] = useState<Held | null>(null);
@@ -74,6 +89,29 @@ export function useGrab(
   const holdingRef = useRef<Held | null>(null);
   holdingRef.current = holding;
 
+  /** El último toque, para reconocer el doble. */
+  const ultimoToque = useRef<{ tile: TileId; cuando: number }>({
+    tile: "",
+    cuando: 0,
+  });
+
+  /**
+   * La cuenta atrás de la pulsación larga, y qué se acabó cogiendo.
+   *
+   * Viven en refs y no dentro del efecto del gesto a propósito: el efecto se
+   * vuelve a montar en cuanto cambia cualquiera de sus dependencias, y eso
+   * reiniciaba la cuenta una y otra vez. Aguantar pulsado no llegaba a
+   * levantar la combinación nunca.
+   */
+  const cuentaAtras = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cogido = useRef<Held | null>(null);
+  const seMovio = useRef(false);
+
+  // La cuenta atrás arranca al pulsar, antes de que exista el efecto del
+  // gesto, así que lee la función por referencia y nunca una versión vieja.
+  const runAtRef = useRef(runAt);
+  runAtRef.current = runAt;
+
   const paint = useCallback((x: number, y: number, from: Gesture) => {
     const node = flyingRef.current;
     if (!node) return;
@@ -84,10 +122,26 @@ export function useGrab(
     (event: React.PointerEvent, from: Slot, tile: TileId) => {
       if (!enabled || event.button !== 0) return;
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+      seMovio.current = false;
+      cogido.current = null;
+      clearTimeout(cuentaAtras.current);
+      // Aguantar sin mover coge la combinación entera y la deja lista para
+      // colocarla de una vez.
+      cuentaAtras.current = setTimeout(() => {
+        if (seMovio.current) return;
+        const junto = runAtRef.current(from);
+        if (junto.length < 2) return;
+        cogido.current = { tiles: junto, from };
+        setHolding(cogido.current);
+        navigator.vibrate?.(12);
+      }, LONG_PRESS_MS);
+
       setGesture({
         tile,
         from,
         pointerId: event.pointerId,
+        conDedo: event.pointerType !== "mouse",
         startX: event.clientX,
         startY: event.clientY,
         offsetX: event.clientX - rect.left,
@@ -135,43 +189,27 @@ export function useGrab(
 
   useEffect(() => {
     if (!gesture) return;
-    let moved = false;
-    let grabbed: Held | null = null;
-
-    /** Lo que se coge al empezar a arrastrar o al aguantar pulsado. */
-    const takeHold = (whole: boolean): Held => {
-      if (whole && gesture.from.kind === "rack") {
-        const run = runAt(gesture.from.index);
-        if (run.length > 1) return { tiles: run, from: gesture.from };
-      }
-      return { tiles: [gesture.tile], from: gesture.from };
-    };
-
-    // Aguantar sin mover coge la combinación entera y la deja lista para
-    // colocarla de una vez.
-    const longPress = setTimeout(() => {
-      if (moved) return;
-      const whole = takeHold(true);
-      if (whole.tiles.length < 2) return;
-      grabbed = whole;
-      setHolding(whole);
-      navigator.vibrate?.(12);
-    }, LONG_PRESS_MS);
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerId !== gesture.pointerId) return;
 
-      if (!moved) {
+      if (!seMovio.current) {
         const travelled = Math.hypot(
           event.clientX - gesture.startX,
           event.clientY - gesture.startY,
         );
-        if (travelled < DRAG_THRESHOLD_PX) return;
-        moved = true;
-        clearTimeout(longPress);
+        const margen = gesture.conDedo
+          ? DRAG_THRESHOLD_PX.touch
+          : DRAG_THRESHOLD_PX.mouse;
+        if (travelled < margen) return;
+        seMovio.current = true;
+        clearTimeout(cuentaAtras.current);
         // Si ya habías cogido la combinación entera, se arrastra entera.
-        grabbed = grabbed ?? takeHold(false);
-        setHolding(grabbed);
+        cogido.current = cogido.current ?? {
+          tiles: [gesture.tile],
+          from: gesture.from,
+        };
+        setHolding(cogido.current);
         setDragging(true);
       }
 
@@ -182,17 +220,27 @@ export function useGrab(
 
     const onUp = (event: PointerEvent) => {
       if (event.pointerId !== gesture.pointerId) return;
-      clearTimeout(longPress);
+      clearTimeout(cuentaAtras.current);
 
-      if (moved && grabbed) {
+      if (seMovio.current && cogido.current) {
         const landing = resolveDrop(event.clientX, event.clientY);
-        if (landing) drop(grabbed, landing);
+        if (landing) drop(cogido.current, landing);
         setHolding(null);
-      } else if (grabbed) {
+      } else if (cogido.current) {
         // Aguantaste pulsado: la combinación se queda elegida esperando sitio.
       } else {
         const held = holdingRef.current;
-        if (!held) {
+        const ahora = Date.now();
+        const doble =
+          ultimoToque.current.tile === gesture.tile &&
+          ahora - ultimoToque.current.cuando < DOUBLE_TAP_MS;
+        ultimoToque.current = { tile: gesture.tile, cuando: ahora };
+
+        if (doble && gesture.from.kind === "rack") {
+          // Dos toques: la ficha se va sola a la combinación que la admita.
+          setHolding(null);
+          if (sendHome(gesture.tile)) navigator.vibrate?.(8);
+        } else if (!held) {
           setHolding({ tiles: [gesture.tile], from: gesture.from });
         } else if (held.tiles.includes(gesture.tile)) {
           setHolding(null);
@@ -206,8 +254,8 @@ export function useGrab(
     };
 
     const onCancel = () => {
-      clearTimeout(longPress);
-      if (moved) setHolding(null);
+      clearTimeout(cuentaAtras.current);
+      if (seMovio.current) setHolding(null);
       settle();
     };
 
@@ -215,12 +263,14 @@ export function useGrab(
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onCancel);
     return () => {
-      clearTimeout(longPress);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onCancel);
     };
-  }, [gesture, drop, paint, runAt, settle]);
+  }, [gesture, drop, paint, runAt, sendHome, settle]);
+
+  // Ninguna cuenta atrás sobrevive al desmontaje.
+  useEffect(() => () => clearTimeout(cuentaAtras.current), []);
 
   // Coloca la ficha voladora bajo el dedo en el primer fotograma.
   useEffect(() => {

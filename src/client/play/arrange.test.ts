@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { locate, moveTile, moveTiles, runAround, sortRack, type Layout } from "./arrange";
+import {
+  locate,
+  moveTile,
+  moveTiles,
+  runAround,
+  sortRack,
+  whereItFits,
+  type Layout,
+} from "./arrange";
 
 const R = (v: number, c = 0) => `r${v}_${c}`;
 const B = (v: number, c = 0) => `b${v}_${c}`;
@@ -143,5 +151,43 @@ describe("localizar y ordenar", () => {
   it("deja los comodines al final", () => {
     const ordenado = sortRack([J(), R(3), B(2)], "runs");
     expect(ordenado[ordenado.length - 1]).toBe(J());
+  });
+});
+
+describe("colocar una ficha sola", () => {
+  it("la manda a la escalera que la admite", () => {
+    const board = [
+      [R(7), B(7), K(7)],
+      [R(3), R(4), R(5)],
+    ];
+    expect(whereItFits(board, R(6))).toEqual({ kind: "set", set: 1, index: 3 });
+  });
+
+  it("la manda al grupo que le falta ese color", () => {
+    const board = [[R(9), B(9), K(9)]];
+    expect(whereItFits(board, O(9))).toEqual({ kind: "set", set: 0, index: 3 });
+  });
+
+  it("no se inventa un sitio cuando no encaja en nada", () => {
+    const board = [[R(3), R(4), R(5)]];
+    expect(whereItFits(board, K(11))).toBeNull();
+  });
+
+  it("no sugiere nada con la mesa vacía", () => {
+    expect(whereItFits([], R(7))).toBeNull();
+  });
+
+  it("aprovecha el comodín que ya está en la mesa", () => {
+    // r3-J-r5 admite el r6 por el extremo.
+    const board = [[R(3), J(), R(5)]];
+    expect(whereItFits(board, R(6))).toEqual({ kind: "set", set: 0, index: 3 });
+  });
+
+  it("elige la primera combinación que la admite", () => {
+    const board = [
+      [R(3), R(4), R(5)],
+      [B(3), B(4), B(5)],
+    ];
+    expect(whereItFits(board, R(6))).toEqual({ kind: "set", set: 0, index: 3 });
   });
 });

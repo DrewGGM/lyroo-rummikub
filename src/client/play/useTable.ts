@@ -17,6 +17,7 @@ import {
   runAround,
   sameLayout,
   sortRack,
+  whereItFits,
   type Layout,
   type Slot,
   type SortMode,
@@ -37,8 +38,11 @@ export type Table = {
   placeMany(tiles: readonly TileId[], to: Slot): void;
   /** ¿Puede esta ficha acabar en ese sitio? */
   allows(from: Slot, to: Slot): boolean;
-  /** La combinación contigua del atril alrededor de esa posición. */
-  runAt(index: number): TileId[];
+  /** Lo que se coge junto al dejar pulsado: la escalera del atril o la
+   * combinación entera si la ficha ya está en la mesa. */
+  runAt(slot: Slot): TileId[];
+  /** Manda la ficha a la combinación donde encaje. Dice si encontró sitio. */
+  sendHome(tile: TileId): boolean;
   undo(): void;
   reset(): void;
   sort(mode: SortMode): void;
@@ -124,8 +128,27 @@ export function useTable(
   );
 
   const runAt = useCallback(
-    (index: number) => runAround(layout.rack, index),
-    [layout.rack],
+    (slot: Slot): TileId[] => {
+      // En el atril, la escalera o el grupo que forman las fichas contiguas.
+      if (slot.kind === "rack") return runAround(layout.rack, slot.index);
+      // En la mesa, la combinación entera: moverla de sitio es un gesto solo,
+      // no una ficha detrás de otra.
+      if (slot.kind === "set") return (layout.board[slot.set] ?? []).slice();
+      return [];
+    },
+    [layout.rack, layout.board],
+  );
+
+  const sendHome = useCallback(
+    (tile: TileId) => {
+      const destino = whereItFits(layout.board, tile);
+      if (!destino) return false;
+      const desde = layout.rack.indexOf(tile);
+      if (desde < 0) return false;
+      place({ kind: "rack", index: desde }, destino);
+      return true;
+    },
+    [layout.board, layout.rack, place],
   );
 
   const undo = useCallback(() => {
@@ -189,6 +212,7 @@ export function useTable(
     placeMany,
     allows,
     runAt,
+    sendHome,
     undo,
     reset,
     sort,

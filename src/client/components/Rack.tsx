@@ -1,5 +1,5 @@
 import { useMemo, type PointerEvent, type ReactNode } from "react";
-import { ArrowUpDown, Undo2 } from "lucide-react";
+import { ArrowUpDown, RotateCcw, Undo2 } from "lucide-react";
 
 import type { TileId } from "../../engine/types";
 import type { Slot, SortMode } from "../play/arrange";
@@ -18,6 +18,8 @@ type RackProps = {
   sortMode: SortMode;
   onUndo: () => void;
   canUndo: boolean;
+  onReset: () => void;
+  canReset: boolean;
   children: ReactNode;
 };
 
@@ -30,6 +32,8 @@ export function Rack({
   sortMode,
   onUndo,
   canUndo,
+  onReset,
+  canReset,
   children,
 }: RackProps) {
   const [ref, box] = useMeasuredBox<HTMLDivElement>();
@@ -51,6 +55,17 @@ export function Rack({
         >
           <Undo2 size={15} aria-hidden />
           Deshacer
+        </button>
+        {/* Recoger toda la jugada de una vez, para volver a empezar el turno. */}
+        <button
+          type="button"
+          className="press press--ghost rack__undo"
+          onClick={onReset}
+          disabled={!canReset}
+          title="Recoger todo lo que has bajado este turno"
+        >
+          <RotateCcw size={15} aria-hidden />
+          Reiniciar
         </button>
         <div className="segmented" role="group" aria-label="Ordenar el atril">
           <ArrowUpDown size={14} className="segmented__icon" aria-hidden />

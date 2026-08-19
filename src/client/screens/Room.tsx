@@ -140,7 +140,14 @@ function Seated({
 }) {
   const isMyTurn = view.turnPlayerId === view.you;
   const table = useTable(view.board, view.rack as string[]);
-  const grab = useGrab(table.place, table.placeMany, table.allows, table.runAt, isMyTurn);
+  const grab = useGrab(
+    table.place,
+    table.placeMany,
+    table.allows,
+    table.runAt,
+    table.sendHome,
+    isMyTurn,
+  );
 
   const secondsLeft = useTurnClock(view, link.clockSkew);
   const rejectedSets = useRejection(link);
@@ -235,6 +242,8 @@ function Seated({
         }}
         onUndo={table.undo}
         canUndo={table.canUndo}
+        onReset={table.reset}
+        canReset={table.touched}
       >
         {needsOpening ? (
           <span
