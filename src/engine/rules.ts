@@ -30,7 +30,11 @@ export type RoomRules = {
  */
 
 export const DEFAULT_RULES: RoomRules = {
-  turnSeconds: 60,
+  // Medio minuto. Un turno de Rummikub es mirar el atril y decidir; el minuto
+  // entero solo se gasta cuando alguien se pone a recolocar media mesa, y
+  // mientras tanto los demas esperan mirando. Quien lo quiera mas largo lo
+  // sube en la sala antes de repartir.
+  turnSeconds: 30,
   openingPoints: 30,
   handSize: 14,
 };

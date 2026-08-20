@@ -268,7 +268,7 @@ test.describe("variantes de la mesa", () => {
     await esperarMesa(page, 2);
     const vista = await vistaDe(page, 0);
     expect(vista.rules).toEqual({
-      turnSeconds: 60,
+      turnSeconds: 30,
       openingPoints: 30,
       handSize: 14,
     });

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { ClientMessage, ServerMessage } from "../protocol";
 import { isRoomCode } from "../protocol";
 import { sortRack } from "../engine/order";
+import { DEFAULT_RULES } from "../engine/rules";
 
 const ORIGIN = "http://mesa.test";
 
@@ -138,13 +139,16 @@ describe("crear y encontrar salas", () => {
   });
 
   it("guarda las reglas elegidas al crear la sala", async () => {
-    const code = await createRoom({ turnSeconds: 30, openingPoints: 50, handSize: 16 });
+    // Ningún valor coincide con el de por defecto: si la sala ignorara lo que
+    // se le pide, la prueba pasaría igual y no nos enteraríamos.
+    const code = await createRoom({ turnSeconds: 90, openingPoints: 50, handSize: 16 });
     const { welcome } = await joinAs(code, "Ana");
     expect(welcome.view.rules).toMatchObject({
-      turnSeconds: 30,
+      turnSeconds: 90,
       openingPoints: 50,
       handSize: 16,
     });
+    expect(welcome.view.rules).not.toMatchObject(DEFAULT_RULES);
   });
 
   it("sustituye por las oficiales cualquier regla inventada", async () => {
@@ -157,7 +161,7 @@ describe("crear y encontrar salas", () => {
     });
     const { welcome } = await joinAs(code, "Ana");
     expect(welcome.view.rules).toEqual({
-      turnSeconds: 60,
+      turnSeconds: 30,
       openingPoints: 30,
       handSize: 14,
     });
