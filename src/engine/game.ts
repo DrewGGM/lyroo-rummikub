@@ -343,11 +343,23 @@ export function drawTile(state: GameState, actorId: string, now: number): Transi
 }
 
 /**
- * Se acabó el tiempo del turno. El servidor roba por el jugador y pasa turno;
- * lo que estuviera montando en su pantalla nunca llegó aquí, así que la mesa no
- * se toca.
+ * Se acabó el tiempo del turno.
+ *
+ * Si lo que el jugador tenía montado en su pantalla es una jugada legal, se
+ * baja. Perder una jugada válida por no llegar a pulsar Confirmar es la peor
+ * forma de perder un turno: el trabajo estaba hecho y el juego lo tira.
+ *
+ * `propuesta` es la última mesa que mandó quien juega. No se le pide el atril:
+ * se deduce quitándole las fichas que ha puesto en la mesa, que además es más
+ * de fiar que creerse lo que diga el cliente. Si no vale --le falta una ficha a
+ * una combinación, o no llega a los puntos de apertura-- se roba y se pasa
+ * turno, como siempre.
  */
-export function timeoutTurn(state: GameState, now: number): Transition {
+export function timeoutTurn(
+  state: GameState,
+  now: number,
+  propuesta?: Board,
+): Transition {
   if (state.status !== "playing") {
     return fail("NOT_PLAYING", "La partida no está en juego.");
   }
@@ -355,6 +367,21 @@ export function timeoutTurn(state: GameState, now: number): Transition {
   if (!player) return fail("NOT_PLAYING", "No hay ningún turno activo.");
 
   const timedOut: GameEvent = { type: "timedOut", playerId: player.id };
+
+  if (propuesta && propuesta.some((set) => set.length > 0)) {
+    const enMesa = new Set(propuesta.flat());
+    const rack = player.rack.filter((id) => !enMesa.has(id));
+    const jugada = commitTurn(
+      state,
+      { actorId: player.id, board: propuesta, rack },
+      now,
+    );
+    // Un rechazo no toca el estado, así que se puede seguir como si nada.
+    if (jugada.ok) {
+      return { ok: true, state: jugada.state, events: [timedOut, ...jugada.events] };
+    }
+  }
+
   const drawn = drawTile(state, player.id, now);
   if (!drawn.ok) return drawn;
   return { ok: true, state: drawn.state, events: [timedOut, ...drawn.events] };

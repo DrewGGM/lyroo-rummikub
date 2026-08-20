@@ -15,6 +15,8 @@ type RackProps = {
   canArrange: boolean;
   /** Escalona la animación del reparto al empezar la ronda. */
   dealing: boolean;
+  /** La última robada, que se marca para no tener que buscarla. */
+  drawn: TileId | null;
   onSort: (mode: SortMode) => void;
   sortMode: SortMode;
   onUndo: () => void;
@@ -32,6 +34,7 @@ export function Rack({
   grab,
   canArrange,
   dealing,
+  drawn,
   onSort,
   sortMode,
   onUndo,
@@ -128,6 +131,7 @@ export function Rack({
               key={id}
               id={id}
               drop={{ kind: "rack", index }}
+              fresh={id === drawn}
               hollow={held && grab.dragging}
               picked={held && !grab.dragging}
               dealIndex={dealing ? index : undefined}

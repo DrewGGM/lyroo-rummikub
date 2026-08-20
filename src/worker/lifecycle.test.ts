@@ -108,6 +108,16 @@ async function join(code: string, name: string, token?: string) {
   return { client, welcome };
 }
 
+/**
+ * Cuánto se retrasa el turno para darlo por vencido.
+ *
+ * Tiene que cubrir de sobra el respiro que la sala concede para confirmar sobre
+ * la bocina; si no, la alarma solo saltaría cuando hubiera transcurrido tiempo
+ * real suficiente y estas pruebas pasarían o fallarían según lo cargada que
+ * estuviera la máquina.
+ */
+const YA_VENCIDO_MS = 10_000;
+
 /** Deja el turno actual ya vencido, sin esperar los segundos reales. */
 async function expireTurn(code: string): Promise<void> {
   const stub = roomStub(code);
@@ -119,7 +129,7 @@ async function expireTurn(code: string): Promise<void> {
       .exec<{ state: string }>("SELECT state FROM room WHERE id = 1")
       .one();
     const game = JSON.parse(row.state) as GameState;
-    game.turnEndsAt = Date.now() - 1000;
+    game.turnEndsAt = Date.now() - YA_VENCIDO_MS;
     state.storage.sql.exec("UPDATE room SET state = ? WHERE id = 1", JSON.stringify(game));
   });
 }
@@ -150,6 +160,64 @@ describe("reloj del turno", () => {
     expect(after.view.players[0]!.tileCount).toBe(15);
     expect(after.view.board).toEqual([]);
     expect(after.view.poolCount).toBe(78 - 1);
+  });
+
+  it("baja sola la jugada que estaba montada al acabarse el tiempo", async () => {
+    const { code, ana, beto, view } = await dealtRoom(30);
+    expect(view.turnPlayerId).toBe(view.you);
+
+    // Una mano con la que se puede abrir, para no depender del reparto.
+    await runInDurableObject(roomStub(code), (_instancia, state) => {
+      const row = state.storage.sql
+        .exec<{ state: string }>("SELECT state FROM room WHERE id = 1")
+        .one();
+      const game = JSON.parse(row.state) as GameState;
+      game.players[0]!.rack = [
+        "r11_0",
+        "r12_0",
+        "r13_0",
+        ...game.players[0]!.rack.slice(3),
+      ];
+      state.storage.sql.exec(
+        "UPDATE room SET state = ? WHERE id = 1",
+        JSON.stringify(game),
+      );
+    });
+
+    await expireTurn(code);
+    // Lo que Ana tiene montado en su pantalla, que nunca llegó a confirmar.
+    ana.client.send({
+      type: "preview",
+      board: [["r11_0", "r12_0", "r13_0"]],
+    });
+    await new Promise((listo) => setTimeout(listo, 60));
+
+    expect(await runDurableObjectAlarm(roomStub(code))).toBe(true);
+
+    // Se baja la jugada en vez de tirarla: 36 puntos, abre de sobra.
+    const after = await beto.client.until(
+      "state",
+      (m) => m.view.turnPlayerId !== view.you,
+    );
+    expect(after.view.board).toEqual([["r11_0", "r12_0", "r13_0"]]);
+    expect(after.view.players[0]!.tileCount).toBe(11);
+    expect(after.view.players[0]!.hasMelded).toBe(true);
+  });
+
+  it("no baja lo que estaba montado si no era jugada legal", async () => {
+    const { code, ana, beto, view } = await dealtRoom(30);
+    await expireTurn(code);
+    // Dos fichas sueltas no son combinación: se roba y se pasa, como siempre.
+    ana.client.send({ type: "preview", board: [view.rack.slice(0, 2)] });
+    await new Promise((listo) => setTimeout(listo, 60));
+
+    expect(await runDurableObjectAlarm(roomStub(code))).toBe(true);
+    const after = await beto.client.until(
+      "state",
+      (m) => m.view.turnPlayerId !== view.you,
+    );
+    expect(after.view.board).toEqual([]);
+    expect(after.view.players[0]!.tileCount).toBe(15);
   });
 
   it("para el reloj cuando no queda nadie mirando", async () => {

@@ -36,6 +36,8 @@ export type Table = {
   readonly canUndo: boolean;
   /** Puntos que suma lo que has bajado, para la apertura. */
   readonly opening: number;
+  /** La última ficha que has robado, para que se vea de un vistazo. */
+  readonly drawn: TileId | null;
   place(from: Slot, to: Slot): void;
   placeMany(tiles: readonly TileId[], to: Slot): void;
   /** ¿Puede esta ficha acabar en ese sitio? */
@@ -74,6 +76,9 @@ export function useTable(
    * ordenarte la mano mientras esperas turno no duraría ni un segundo.
    */
   const ordenPropio = useRef<readonly TileId[]>(serverRack);
+  /** El atril que mandó el servidor la vez anterior, para ver qué ha llegado. */
+  const atrilDeAntes = useRef<readonly TileId[]>(serverRack);
+  const [drawn, setDrawn] = useState<TileId | null>(null);
 
   // La mesa autoritativa manda: cuando cambia de verdad (alguien jugó, robó, o
   // te rechazaron la jugada), lo que estabas montando deja de tener sentido.
@@ -91,6 +96,22 @@ export function useTable(
     });
     setHistory([]);
   }, [baselineKey, baseline]);
+
+  /**
+   * Qué ficha acaba de llegar al atril.
+   *
+   * Robas, la ficha aparece entre otras trece y hay que buscarla. Se marca la
+   * que ha aparecido desde la última vez, y se queda marcada hasta que llegue
+   * otra o la juegues. En el reparto inicial llegan catorce de golpe y no se
+   * marca ninguna: señalarlas todas sería no señalar nada.
+   */
+  useEffect(() => {
+    const antes = new Set(atrilDeAntes.current);
+    const llegadas = serverRack.filter((id) => !antes.has(id));
+    atrilDeAntes.current = serverRack;
+    if (llegadas.length === 1) setDrawn(llegadas[0]!);
+    else if (llegadas.length > 1) setDrawn(null);
+  }, [serverRack]);
 
   // Todo cambio del atril se apunta, venga de arrastrar o de los botones de
   // ordenar, para poder devolverlo tal cual tras la siguiente novedad.
@@ -266,6 +287,7 @@ export function useTable(
     played,
     broken,
     touched,
+    drawn,
     canUndo: history.length > 0,
     opening,
     place,

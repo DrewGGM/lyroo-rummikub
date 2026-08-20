@@ -338,3 +338,83 @@ describe("una sala guardada por una versión anterior", () => {
     expect(hydrateGame(partida).lastPlayed).toEqual(["r5_0"]);
   });
 });
+
+describe("se acaba el tiempo con una jugada montada", () => {
+  /** Una mano con la que se puede abrir de sobra, y su jugada. */
+  function conJugada(): { state: GameState; jugada: string[][] } {
+    const state = playing(["Ana", "Beto"]);
+    const mano = ["r11_0", "r12_0", "r13_0", ...state.players[0]!.rack.slice(3)];
+    state.players = state.players.map((p) =>
+      p.id === "p0" ? { ...p, rack: mano } : p,
+    );
+    return { state, jugada: [["r11_0", "r12_0", "r13_0"]] };
+  }
+
+  it("la baja sola en vez de tirarla", () => {
+    const { state, jugada } = conJugada();
+    const antes = state.players[0]!.rack.length;
+    const resultado = timeoutTurn(state, NOW, jugada);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+
+    expect(resultado.state.board).toEqual([["r11_0", "r12_0", "r13_0"]]);
+    // Y las fichas salen del atril: 36 puntos, abre de sobra.
+    expect(resultado.state.players[0]!.rack).toHaveLength(antes - 3);
+    expect(resultado.state.players[0]!.hasMelded).toBe(true);
+    expect(resultado.state.turnIndex).toBe(1);
+  });
+
+  it("avisa de que se acabó el tiempo, no lo disimula", () => {
+    const { state, jugada } = conJugada();
+    const resultado = timeoutTurn(state, NOW, jugada);
+    if (!resultado.ok) return;
+    expect(resultado.events[0]).toEqual({ type: "timedOut", playerId: "p0" });
+    expect(resultado.events.some((e) => e.type === "played")).toBe(true);
+  });
+
+  it("si la jugada no vale, roba y pasa como siempre", () => {
+    const state = playing(["Ana", "Beto"]);
+    const antes = state.players[0]!.rack.length;
+    // Dos fichas sueltas no son combinación.
+    const rota = [state.players[0]!.rack.slice(0, 2)];
+    const resultado = timeoutTurn(state, NOW, rota);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+
+    expect(resultado.state.board).toEqual([]);
+    expect(resultado.state.players[0]!.rack).toHaveLength(antes + 1);
+    expect(resultado.state.turnIndex).toBe(1);
+  });
+
+  it("no baja una jugada que no llega a los puntos de apertura", () => {
+    const state = playing(["Ana", "Beto"]);
+    state.players = state.players.map((p) =>
+      p.id === "p0"
+        ? { ...p, rack: ["r1_0", "r2_0", "r3_0", ...p.rack.slice(3)] }
+        : p,
+    );
+    // 1+2+3 son seis puntos: no abre con treinta.
+    const resultado = timeoutTurn(state, NOW, [["r1_0", "r2_0", "r3_0"]]);
+    if (!resultado.ok) return;
+    expect(resultado.state.board).toEqual([]);
+  });
+
+  it("sin nada montado se comporta como antes", () => {
+    const state = playing(["Ana", "Beto"]);
+    const resultado = timeoutTurn(state, NOW, []);
+    if (!resultado.ok) return;
+    expect(resultado.state.board).toEqual([]);
+    expect(resultado.state.turnIndex).toBe(1);
+  });
+
+  it("no se cree una mesa con fichas que el jugador no tiene", () => {
+    const state = playing(["Ana", "Beto"]);
+    const ajenas = state.players[1]!.rack.slice(0, 3);
+    const resultado = timeoutTurn(state, NOW, [ajenas]);
+    if (!resultado.ok) return;
+    expect(resultado.state.board).toEqual([]);
+    expect(resultado.state.players[1]!.rack).toEqual(
+      expect.arrayContaining(ajenas),
+    );
+  });
+});

@@ -496,6 +496,38 @@ test("quien mira ve marcado lo que el otro va poniendo", async ({ browser }) => 
   await expect(esperando.locator(".felt__sets .tile--fresh")).toHaveCount(bajadas);
 });
 
+test("los últimos segundos se avisan por el borde, y solo a quien juega", async ({
+  browser,
+}) => {
+  // Turno de 30s: se espera a que queden cinco.
+  const { jugando, esperando } = await sentarADos(browser);
+
+  await expect(jugando.locator(".room--apremia")).toHaveCount(0);
+  await expect(jugando.locator(".room--apremia")).toHaveCount(1, {
+    timeout: 30_000,
+  });
+  // A quien espera no le parpadea nada: no puede hacer nada al respecto.
+  await expect(esperando.locator(".room--apremia")).toHaveCount(0);
+});
+
+test("la ficha recién robada se ve marcada", async ({ browser }) => {
+  const { jugando } = await sentarADos(browser);
+
+  // El reparto trae catorce de golpe: ahí no se marca ninguna.
+  await expect(jugando.locator(".rack__ledge .tile--fresh")).toHaveCount(0);
+
+  const antes = await jugando.locator(".rack__ledge .tile").evaluateAll((n) =>
+    n.map((e) => e.getAttribute("data-tile")!),
+  );
+  await jugando.getByRole("button", { name: "Robar" }).click();
+
+  const marcada = jugando.locator(".rack__ledge .tile--fresh");
+  await expect(marcada).toHaveCount(1);
+  // Y la marcada es justo la que no estaba antes.
+  const cual = await marcada.getAttribute("data-tile");
+  expect(antes).not.toContain(cual);
+});
+
 /** Deja una mesa de dos empezada y dice a quién le toca. */
 async function sentarADos(browser: Browser) {
   const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();

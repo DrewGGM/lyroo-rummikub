@@ -33,6 +33,44 @@
   min-height: 0;
 }
 
+/*
+ * Los últimos segundos del turno.
+ *
+ * El número del asiento es pequeño y está arriba, y mientras juegas miras las
+ * fichas: se llegaba a cero sin enterarse. Esto enciende el borde entero de la
+ * pantalla, que se ve sin mirarlo y no tapa nada. Va en un elemento aparte
+ * --y no en el borde de la sala-- para que no empuje ni un píxel del tablero
+ * al aparecer: encenderse no puede recolocar la mesa a falta de cinco
+ * segundos, que es justo cuando peor viene.
+ */
+.room--apremia::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--alarma),
+    inset 0 0 34px 6px rgb(200 53 44 / 0.42);
+  animation: apremia 1s ease-in-out infinite;
+}
+
+@keyframes apremia {
+  50% {
+    box-shadow:
+      inset 0 0 0 3px var(--alarma),
+      inset 0 0 54px 12px rgb(200 53 44 / 0.62);
+  }
+}
+
+/* Sin parpadeo para quien lo pidió, pero el aviso se queda: es información. */
+@media (prefers-reduced-motion: reduce) {
+  .room--apremia::after {
+    animation: none;
+  }
+}
+
 /* --- Barra superior ----------------------------------------------------- */
 
 .bar {

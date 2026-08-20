@@ -133,6 +133,9 @@ function NameCard({
 // --- Ya sentado -----------------------------------------------------------
 
 /** Cada cuánto se cuenta a los demás lo que estás moviendo. */
+/** Cuándo empieza a avisar el borde de la pantalla. */
+const AVISO_SEGUNDOS = 5;
+
 const PREVIEW_EVERY_MS = 350;
 
 function Seated({
@@ -197,6 +200,15 @@ function Seated({
     );
   }
 
+  /**
+   * Los últimos segundos, avisando por el borde de la pantalla.
+   *
+   * El número del asiento es pequeño y está arriba, y la vista está en las
+   * fichas: se llegaba a cero sin enterarse. El borde entero se ve sin mirarlo.
+   */
+  const apremia =
+    isMyTurn && secondsLeft !== null && secondsLeft <= AVISO_SEGUNDOS;
+
   // Mientras otro monta su jugada se ve su mesa en vivo; la tuya solo la tocas tú.
   const showing = !isMyTurn && link.preview ? link.preview.board : table.board;
 
@@ -220,7 +232,11 @@ function Seated({
     isMyTurn && !waiting && table.touched && table.broken.length === 0 && !openingShort;
 
   return (
-    <div className="room">
+    <div
+      className={`room${apremia ? " room--apremia" : ""}`}
+      // El aviso solo tiene sentido si te toca a ti: ver la pantalla encenderse
+      // mientras piensa otro sería una alarma por algo que no puedes evitar.
+    >
       <div className="bar">
         <button
           type="button"
@@ -260,6 +276,7 @@ function Seated({
         grab={grab}
         canArrange={puedoOrdenar}
         dealing={dealing}
+        drawn={table.drawn}
         sortMode={sortMode}
         onSort={(mode) => {
           setSortMode(mode);

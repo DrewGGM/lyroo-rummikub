@@ -44,6 +44,16 @@ const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 const ALARM_SLACK_MS = 250;
 /** Ninguna alarma se programa más cerca que esto: en el pasado, jamás. */
 const ALARM_FLOOR_MS = 500;
+/** Ni el mazo más grande --ocho jugadores-- pasa de aquí. */
+const MAX_TILES = 214;
+/**
+ * El respiro que se da al confirmar sobre la bocina.
+ *
+ * El reloj llega a cero en tu pantalla y el mensaje todavía tiene que cruzar
+ * media internet. Sin este margen, pulsar Confirmar en el último segundo se
+ * perdía por unas décimas y la jugada volvía al atril.
+ */
+const TURN_GRACE_MS = 2000;
 /** Tope de conexiones por sala: 8 asientos más reconexiones en curso. */
 const MAX_SOCKETS = 20;
 
@@ -76,6 +86,12 @@ export class GameRoom extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS seat (
         player_id TEXT PRIMARY KEY,
         token TEXT NOT NULL UNIQUE
+      );
+      CREATE TABLE IF NOT EXISTS preview (
+        id INTEGER PRIMARY KEY,
+        player_id TEXT NOT NULL,
+        turn_ends_at INTEGER NOT NULL,
+        board TEXT NOT NULL
       );
     `);
   }
@@ -182,9 +198,9 @@ export class GameRoom extends DurableObject<Env> {
       watching &&
       state.status === "playing" &&
       state.turnEndsAt !== null &&
-      now >= state.turnEndsAt - ALARM_SLACK_MS
+      now >= state.turnEndsAt + TURN_GRACE_MS - ALARM_SLACK_MS
     ) {
-      this.#apply(state, timeoutTurn(state, now));
+      this.#apply(state, timeoutTurn(state, now, this.#pendingPreview(state)));
       return;
     }
 
@@ -282,10 +298,13 @@ export class GameRoom extends DurableObject<Env> {
         this.#apply(state, setRules(state, seat, message.rules), ws);
         return;
       case "preview": {
-        // No se valida ni se guarda: es un reflejo de lo que hay en la pantalla
-        // de quien juega, y el siguiente estado autoritativo lo sustituye.
         if (state.status !== "playing") return;
         if (state.players[state.turnIndex]?.id !== seat) return;
+        // Se guarda, y no solo se reenvía: si se acaba el tiempo con una jugada
+        // válida montada, es lo único que el servidor tiene para confirmarla.
+        // Va aparte del estado y no dentro, porque cambia tres veces por
+        // segundo y el estado no tiene por qué enterarse de cada ficha movida.
+        this.#rememberPreview(state, seat, message.board);
         this.#relayPreview(ws, seat, message.board);
         return;
       }
@@ -372,6 +391,52 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   /** Reenvía la mesa en curso al resto de la mesa, sin tocar nada. */
+  /**
+   * Apunta la mesa que lleva montada quien juega.
+   *
+   * Se marca con la hora de fin del turno, que cambia en cada turno, para que
+   * una mesa de hace tres turnos no pueda confirmarse por error cuando al mismo
+   * jugador le vuelva a tocar.
+   *
+   * Sobrevive a la hibernación a propósito: entre la última ficha movida y el
+   * final del turno pueden pasar veinte segundos de silencio, y en ese hueco el
+   * Durable Object puede irse a dormir y perder cualquier cosa que solo
+   * estuviera en memoria.
+   */
+  #rememberPreview(state: GameState, playerId: string, board: Board): void {
+    if (state.turnEndsAt === null) return;
+    const fichas = board.reduce((total, set) => total + set.length, 0);
+    // Un cliente hostil podría mandar una mesa gigante y engordar el disco de
+    // la sala. Nadie tiene más fichas que el mazo entero.
+    if (fichas > MAX_TILES) return;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO preview (id, player_id, turn_ends_at, board) VALUES (1, ?, ?, ?) " +
+        "ON CONFLICT(id) DO UPDATE SET player_id = excluded.player_id, " +
+        "turn_ends_at = excluded.turn_ends_at, board = excluded.board",
+      playerId,
+      state.turnEndsAt,
+      JSON.stringify(board),
+    );
+  }
+
+  /** La mesa apuntada, si de verdad es la de este turno. */
+  #pendingPreview(state: GameState): Board | undefined {
+    if (state.turnEndsAt === null) return undefined;
+    const fila = this.ctx.storage.sql
+      .exec<{ player_id: string; turn_ends_at: number; board: string }>(
+        "SELECT player_id, turn_ends_at, board FROM preview WHERE id = 1",
+      )
+      .toArray()[0];
+    if (!fila) return undefined;
+    if (fila.turn_ends_at !== state.turnEndsAt) return undefined;
+    if (fila.player_id !== state.players[state.turnIndex]?.id) return undefined;
+    try {
+      return JSON.parse(fila.board) as Board;
+    } catch {
+      return undefined;
+    }
+  }
+
   #relayPreview(origin: WebSocket, playerId: string, board: Board): void {
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === origin) continue;
@@ -454,7 +519,9 @@ export class GameRoom extends DurableObject<Env> {
 
     // Con alguien mirando y la partida en marcha, la cita es el fin del turno.
     if (watching && state.status === "playing" && state.turnEndsAt !== null) {
-      this.ctx.storage.setAlarm(Math.max(state.turnEndsAt, now + ALARM_FLOOR_MS));
+      this.ctx.storage.setAlarm(
+        Math.max(state.turnEndsAt + TURN_GRACE_MS, now + ALARM_FLOOR_MS),
+      );
       return;
     }
 
