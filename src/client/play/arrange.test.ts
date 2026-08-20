@@ -340,3 +340,66 @@ describe("la pulsación larga también levanta parejas", () => {
     expect(runAround([R(5), J()], 0)).toEqual([R(5), J()]);
   });
 });
+
+describe("la pareja se aparta sola al soltar la ficha", () => {
+  it("mete un 6 de otro color en la escalera y deja los dos seises juntos", () => {
+    // 1-2-3-4-5-6 naranja con un 6 azul dentro: 1-2-3-4-5 y 6-6 esperando.
+    const fila = [O(1), O(2), O(3), O(4), O(5), O(6), B(6)];
+    expect(tidySet(fila, B(6))).toEqual([
+      [O(1), O(2), O(3), O(4), O(5)],
+      [B(6), O(6)],
+    ]);
+  });
+
+  it("hace lo mismo si la pareja cae por el otro extremo", () => {
+    const fila = [B(1), O(1), O(2), O(3), O(4), O(5), O(6)];
+    expect(tidySet(fila, B(1))).toEqual([
+      [B(1), O(1)],
+      [O(2), O(3), O(4), O(5), O(6)],
+    ]);
+  });
+
+  it("no aparta nada si lo que queda no seguiría siendo escalera", () => {
+    // Con 1-2-3 naranja, sacar el 3 dejaría 1-2: no hay recolocación sensata.
+    const fila = [O(1), O(2), O(3), B(3)];
+    expect(tidySet(fila, B(3))).toEqual([fila]);
+  });
+
+  it("no aparta nada si la ficha no hace pareja con ninguna", () => {
+    const fila = [O(1), O(2), O(3), O(4), O(5), B(9)];
+    expect(tidySet(fila, B(9))).toEqual([fila]);
+  });
+
+  it("prefiere dos combinaciones hechas antes que dejar una pareja suelta", () => {
+    const fila = [K(1), K(2), K(3), K(4), K(5), K(6), K(7), K(8), K(5, 1)];
+    const partida = tidySet(fila, K(5, 1));
+    expect(partida).toHaveLength(2);
+    for (const trozo of partida) expect(readSet(trozo).length).toBeGreaterThan(0);
+  });
+
+  it("sin saber qué ficha cayó, no se inventa la separación", () => {
+    const fila = [O(1), O(2), O(3), O(4), O(5), O(6), B(6)];
+    expect(tidySet(fila)).toEqual([fila]);
+  });
+
+  it("no pierde ni inventa fichas al apartar la pareja", () => {
+    const fila = [O(1), O(2), O(3), O(4), O(5), O(6), B(6)];
+    expect(tidySet(fila, B(6)).flat().sort()).toEqual(fila.slice().sort());
+  });
+
+  it("desde la mesa entera, la fila de al lado no se toca", () => {
+    const antes = layout(
+      [
+        [R(9), B(9), K(9)],
+        [O(1), O(2), O(3), O(4), O(5), O(6), B(6)],
+      ],
+      [],
+    );
+    const despues = tidyAround(antes, B(6));
+    expect(despues.board).toEqual([
+      [R(9), B(9), K(9)],
+      [O(1), O(2), O(3), O(4), O(5)],
+      [B(6), O(6)],
+    ]);
+  });
+});

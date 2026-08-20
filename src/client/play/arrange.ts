@@ -266,11 +266,17 @@ export function keepOrder(
  * Si no hay forma de arreglarla se deja tal cual: que se vea rota es mejor que
  * inventarse una recolocación que el jugador no pidió.
  */
-export function tidySet(tiles: readonly TileId[]): TileId[][] {
+export function tidySet(
+  tiles: readonly TileId[],
+  /** La ficha que acabas de soltar ahí, si vienes de soltar una. */
+  recien?: TileId,
+): TileId[][] {
   if (tiles.length === 0) return [];
   if (readSet(tiles).length > 0) return [canonicalOrder(tiles)];
 
   const ordenadas = [...tiles].sort(porValor);
+
+  // Lo mejor: que salgan dos combinaciones hechas.
   for (
     let corte = MIN_SET_SIZE;
     corte <= ordenadas.length - MIN_SET_SIZE;
@@ -282,7 +288,33 @@ export function tidySet(tiles: readonly TileId[]): TileId[][] {
       return [canonicalOrder(izquierda), canonicalOrder(derecha)];
     }
   }
+
+  // Y si no, apartar la pareja que forma la ficha recién soltada.
+  //
+  // Metes un 6 azul en la escalera naranja 1-2-3-4-5-6 y lo que quieres no es
+  // que se rompa: quieres 1-2-3-4-5 por un lado y los dos seises por otro,
+  // esperando al tercero. La pareja aún no es combinación --y hasta que lo sea
+  // no se puede confirmar--, pero es el paso intermedio de cualquier jugada
+  // que reordena la mesa, y hacerlo a mano son cuatro arrastres.
+  if (recien !== undefined) {
+    for (let corte = 2; corte <= ordenadas.length - 2; corte++) {
+      const izquierda = ordenadas.slice(0, corte);
+      const derecha = ordenadas.slice(corte);
+      if (esParejaDe(izquierda, recien) && readSet(derecha).length > 0) {
+        return [izquierda, canonicalOrder(derecha)];
+      }
+      if (readSet(izquierda).length > 0 && esParejaDe(derecha, recien)) {
+        return [canonicalOrder(izquierda), derecha];
+      }
+    }
+  }
+
   return [tiles.slice()];
+}
+
+/** Dos fichas, una de ellas la recién soltada, a las que solo les falta otra. */
+function esParejaDe(tiles: readonly TileId[], recien: TileId): boolean {
+  return tiles.length === 2 && tiles.includes(recien) && leFaltaUna(tiles);
 }
 
 function porValor(a: TileId, b: TileId): number {
@@ -298,7 +330,7 @@ export function tidyAround(layout: Layout, tile: TileId): Layout {
   const fila = layout.board.findIndex((set) => set.includes(tile));
   if (fila < 0) return layout;
 
-  const arreglada = tidySet(layout.board[fila]!);
+  const arreglada = tidySet(layout.board[fila]!, tile);
   if (
     arreglada.length === 1 &&
     arreglada[0]!.every((id, i) => id === layout.board[fila]![i])
