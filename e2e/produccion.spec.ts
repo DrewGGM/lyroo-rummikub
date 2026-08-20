@@ -164,6 +164,24 @@ async function asientoAnfitrion(page: Page): Promise<number> {
   return 0;
 }
 
+/**
+ * A qué asiento le toca jugar.
+ *
+ * El orden de los asientos depende de qué conexión llegó antes, y contra un
+ * servidor remoto eso es una carrera. Dar por hecho que el primero es quien
+ * juega hacía que las trampas se rechazaran por el motivo equivocado y la
+ * prueba cantara un agujero donde no lo había.
+ */
+async function asientoEnTurno(page: Page): Promise<number> {
+  const vista = await vistaDe(page, 0);
+  const juega = vista?.turnPlayerId;
+  const cuantos = vista?.players?.length ?? 0;
+  for (let asiento = 0; asiento < cuantos; asiento++) {
+    if ((await vistaDe(page, asiento))?.you === juega) return asiento;
+  }
+  return 0;
+}
+
 async function repartir(page: Page): Promise<void> {
   const anfitrion = await asientoAnfitrion(page);
   const respuesta = await actuar(page, anfitrion, { type: "start" }, 300);
@@ -263,8 +281,11 @@ test.describe("intentos de trampa", () => {
     await esperarMesa(page, 2);
     await repartir(page);
 
-    const ana = await vistaDe(page, 0);
-    const beto = await vistaDe(page, 1);
+    // Quien juega hace las trampas de turno; el otro, las de turno ajeno.
+    const enTurno = await asientoEnTurno(page);
+    const esperando = enTurno === 0 ? 1 : 0;
+    const ana = await vistaDe(page, enTurno);
+    const beto = await vistaDe(page, esperando);
     const colaron: string[] = [];
 
     const intentar = async (
@@ -283,21 +304,21 @@ test.describe("intentos de trampa", () => {
 
     await intentar(
       "fichas inventadas",
-      0,
+      enTurno,
       { type: "commit", board: [["r10_0", "b10_0", "k10_0"]], rack: ana.rack },
       ["TILES_DO_NOT_MATCH"],
     );
 
     await intentar(
       "jugar en turno ajeno",
-      1,
+      esperando,
       { type: "commit", board: [beto.rack.slice(0, 3)], rack: beto.rack.slice(3) },
       ["NOT_YOUR_TURN"],
     );
 
     await intentar(
       "duplicar una ficha propia",
-      0,
+      enTurno,
       {
         type: "commit",
         board: [ana.rack.slice(0, 3), ana.rack.slice(0, 3)],
@@ -308,7 +329,7 @@ test.describe("intentos de trampa", () => {
 
     await intentar(
       "confirmar sin jugar nada",
-      0,
+      enTurno,
       { type: "commit", board: [], rack: ana.rack },
       ["NOTHING_PLAYED"],
     );
@@ -323,21 +344,21 @@ test.describe("intentos de trampa", () => {
 
     await intentar(
       "cambiar reglas en caliente",
-      0,
+      enTurno,
       { type: "settings", rules: { openingPoints: 25 } },
       ["ALREADY_STARTED"],
     );
 
     await intentar(
       "revancha antes de tiempo",
-      0,
+      enTurno,
       { type: "rematch" },
       ["NOT_FINISHED"],
     );
 
     // Colar un comodín disfrazado de reordenar el atril: no debe cambiar nada.
-    await actuar(page, 0, { type: "sort", rack: [...ana.rack.slice(1), "j_0"] });
-    const trasElComodin = await vistaDe(page, 0);
+    await actuar(page, enTurno, { type: "sort", rack: [...ana.rack.slice(1), "j_0"] });
+    const trasElComodin = await vistaDe(page, enTurno);
     if (trasElComodin.rack.length !== ana.rack.length) {
       colaron.push("comodín colado al reordenar");
     }
@@ -345,7 +366,7 @@ test.describe("intentos de trampa", () => {
     expect(colaron, "trampas que el servidor dejó pasar").toEqual([]);
 
     // Después de todo el ataque, la partida sigue exactamente como estaba.
-    const final = await vistaDe(page, 0);
+    const final = await vistaDe(page, enTurno);
     expect(final.board).toEqual([]);
     expect(final.rack).toHaveLength(14);
     expect(final.turnPlayerId).toBe(final.you);
