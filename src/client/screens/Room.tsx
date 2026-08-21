@@ -148,6 +148,7 @@ function Seated({
   onLeave: () => void;
 }) {
   const isMyTurn = view.turnPlayerId === view.you;
+  useTurnBuzz(isMyTurn, view.status === "playing");
   const yaAbrio = Boolean(
     view.players.find((player) => player.id === view.you)?.hasMelded,
   );
@@ -770,3 +771,31 @@ function quéSeAcabaDePoner(
   const enVivo = showing.flat().filter((id) => !firmes.has(id));
   return new Set(enVivo.length > 0 ? enVivo : view.lastPlayed);
 }
+
+/**
+ * Un aviso en la mano cuando te toca.
+ *
+ * Mirando la mesa de otro es fácil despistarse, y con turnos de medio minuto
+ * eso es medio turno perdido. Dos toques cortos, que se distinguen de una
+ * notificación cualquiera sin llegar a molestar.
+ *
+ * Dos límites que conviene conocer y que no se pueden sortear: en iPhone no
+ * existe --Safari no expone vibración a la web, ni siquiera instalada como
+ * aplicación-- y no suena con la pantalla apagada o en otra aplicación, porque
+ * el navegador ignora la vibración cuando la página no está a la vista. Es un
+ * aviso para quien está mirando la partida, no para traerte de vuelta a ella.
+ */
+function useTurnBuzz(isMyTurn: boolean, playing: boolean): void {
+  const antes = useRef(isMyTurn);
+
+  useEffect(() => {
+    const empieza = playing && isMyTurn && !antes.current;
+    antes.current = isMyTurn;
+    if (!empieza) return;
+    // El navegador que no la tenga simplemente no hace nada.
+    navigator.vibrate?.(TURN_BUZZ);
+  }, [isMyTurn, playing]);
+}
+
+/** Dos toques cortos: vibra, calla, vibra. */
+const TURN_BUZZ = [45, 70, 45];

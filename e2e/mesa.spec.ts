@@ -561,6 +561,34 @@ test("ordenar deja las jugadas armadas y separadas al principio", async ({
   }
 });
 
+test("el móvil avisa cuando te toca, y solo cuando te toca", async ({ browser }) => {
+  const { jugando, esperando } = await sentarADos(browser);
+
+  // Se espía la vibración: el navegador de pruebas no tiene motor.
+  for (const pagina of [jugando, esperando]) {
+    await pagina.evaluate(() => {
+      (window as unknown as { vibraciones: number[][] }).vibraciones = [];
+      navigator.vibrate = ((patrón: number | Iterable<number>) => {
+        (window as unknown as { vibraciones: number[][] }).vibraciones.push(
+          typeof patrón === "number" ? [patrón] : [...patrón],
+        );
+        return true;
+      }) as Navigator["vibrate"];
+    });
+  }
+  const vibraciones = (pagina: typeof jugando) =>
+    pagina.evaluate(() => (window as unknown as { vibraciones: number[][] }).vibraciones);
+
+  // Quien ya tenía el turno no vuelve a vibrar por seguir teniéndolo.
+  await jugando.getByRole("button", { name: "Robar" }).click();
+
+  // Y a quien le llega el turno, sí.
+  await expect
+    .poll(() => vibraciones(esperando))
+    .toEqual([[45, 70, 45]]);
+  expect(await vibraciones(jugando)).toEqual([]);
+});
+
 /** Deja una mesa de dos empezada y dice a quién le toca. */
 async function sentarADos(browser: Browser) {
   const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();
