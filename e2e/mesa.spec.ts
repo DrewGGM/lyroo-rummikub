@@ -589,6 +589,34 @@ test("el móvil avisa cuando te toca, y solo cuando te toca", async ({ browser }
   expect(await vibraciones(jugando)).toEqual([]);
 });
 
+test("el borde ámbar marca de quién es el turno", async ({ browser }) => {
+  const { jugando, esperando } = await sentarADos(browser);
+
+  await expect(jugando.locator(".room--te-toca")).toHaveCount(1);
+  await expect(esperando.locator(".room--te-toca")).toHaveCount(0);
+
+  await jugando.getByRole("button", { name: "Robar" }).click();
+
+  // Al pasar el turno, el borde cambia de pantalla.
+  await expect(esperando.locator(".room--te-toca")).toHaveCount(1);
+  await expect(jugando.locator(".room--te-toca")).toHaveCount(0);
+});
+
+test("el sonido se puede callar y se recuerda", async ({ browser }) => {
+  const { jugando } = await sentarADos(browser);
+
+  const interruptor = jugando.getByRole("button", { name: /aviso de turno|sonido/i });
+  await expect(interruptor).toHaveAttribute("aria-pressed", "true");
+  await interruptor.click();
+  await expect(interruptor).toHaveAttribute("aria-pressed", "false");
+
+  // Y sigue callado al volver a entrar: no hay que apagarlo cada partida.
+  await jugando.reload();
+  await expect(
+    jugando.getByRole("button", { name: /aviso de turno|sonido/i }),
+  ).toHaveAttribute("aria-pressed", "false");
+});
+
 /** Deja una mesa de dos empezada y dice a quién le toca. */
 async function sentarADos(browser: Browser) {
   const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();

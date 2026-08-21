@@ -5,7 +5,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ArrowLeft, Check, Copy, Hand, Layers, Share2, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Hand,
+  Layers,
+  Share2,
+  Users,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 import type { GameView } from "../../protocol";
 import type { Board, TileId } from "../../engine/types";
@@ -19,6 +29,7 @@ import {
 import { Feed } from "../components/Feed";
 import { Felt } from "../components/Felt";
 import { Rack } from "../components/Rack";
+import { useChime, type Chime } from "../play/useChime";
 import { Seats } from "../components/Seats";
 import { Tile } from "../components/Tile";
 import { rememberName, rememberedName, seatToken } from "../net/identity";
@@ -148,7 +159,8 @@ function Seated({
   onLeave: () => void;
 }) {
   const isMyTurn = view.turnPlayerId === view.you;
-  useTurnBuzz(isMyTurn, view.status === "playing");
+  const chime = useChime();
+  useTurnAlert(isMyTurn, view.status === "playing", chime);
   const yaAbrio = Boolean(
     view.players.find((player) => player.id === view.you)?.hasMelded,
   );
@@ -234,7 +246,9 @@ function Seated({
 
   return (
     <div
-      className={`room${apremia ? " room--apremia" : ""}`}
+      className={`room${isMyTurn ? " room--te-toca" : ""}${
+        apremia ? " room--apremia" : ""
+      }`}
       // El aviso solo tiene sentido si te toca a ti: ver la pantalla encenderse
       // mientras piensa otro sería una alarma por algo que no puedes evitar.
     >
@@ -249,6 +263,16 @@ function Seated({
         </button>
         <CodeChip code={view.code} />
         <span className="bar__spacer" />
+        <button
+          type="button"
+          className="press press--ghost bar__mute"
+          onClick={chime.toggle}
+          aria-pressed={chime.on}
+          title={chime.on ? "Silenciar el aviso de turno" : "Avisar con sonido"}
+          aria-label={chime.on ? "Silenciar el aviso de turno" : "Avisar con sonido"}
+        >
+          {chime.on ? <Volume2 size={16} aria-hidden /> : <VolumeX size={16} aria-hidden />}
+        </button>
         <span className="bar__pool" title="Fichas en el pozo">
           <Layers size={13} aria-hidden />
           {view.poolCount}
@@ -773,7 +797,7 @@ function quéSeAcabaDePoner(
 }
 
 /**
- * Un aviso en la mano cuando te toca.
+ * El aviso de que te toca: en la mano y al oído.
  *
  * Mirando la mesa de otro es fácil despistarse, y con turnos de medio minuto
  * eso es medio turno perdido. Dos toques cortos, que se distinguen de una
@@ -785,15 +809,18 @@ function quéSeAcabaDePoner(
  * el navegador ignora la vibración cuando la página no está a la vista. Es un
  * aviso para quien está mirando la partida, no para traerte de vuelta a ella.
  */
-function useTurnBuzz(isMyTurn: boolean, playing: boolean): void {
+function useTurnAlert(isMyTurn: boolean, playing: boolean, chime: Chime): void {
   const antes = useRef(isMyTurn);
+  const sonar = useRef(chime.play);
+  sonar.current = chime.play;
 
   useEffect(() => {
     const empieza = playing && isMyTurn && !antes.current;
     antes.current = isMyTurn;
     if (!empieza) return;
-    // El navegador que no la tenga simplemente no hace nada.
+    // El navegador que no tenga vibración simplemente no hace nada.
     navigator.vibrate?.(TURN_BUZZ);
+    sonar.current();
   }, [isMyTurn, playing]);
 }
 

@@ -34,6 +34,46 @@
 }
 
 /*
+ * Tu turno, marcado en el borde.
+ *
+ * Saber que te toca no debería costar leer los nombres de arriba. El borde
+ * ámbar se enciende mientras juegas tú y se apaga cuando pasa a otro. Va quieto
+ * a propósito: es un estado que dura medio minuto, y algo que parpadea medio
+ * minuto cansa. El que parpadea es el rojo, y por eso se distingue.
+ */
+.room--te-toca::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 2px rgb(245 185 66 / 0.5),
+    inset 0 0 28px 2px rgb(245 185 66 / 0.16);
+  animation: te-toca 900ms var(--settle);
+}
+
+/* Al empezar el turno entra con un destello, y se queda tenue. */
+@keyframes te-toca {
+  from {
+    box-shadow:
+      inset 0 0 0 3px rgb(245 185 66 / 0.95),
+      inset 0 0 46px 10px rgb(245 185 66 / 0.4);
+  }
+}
+
+/* Cuando aprieta el tiempo manda el rojo: dos bordes a la vez no dicen nada. */
+.room--apremia::before {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room--te-toca::before {
+    animation: none;
+  }
+}
+
+/*
  * Los últimos segundos del turno.
  *
  * El número del asiento es pequeño y está arriba, y mientras juegas miras las
@@ -626,6 +666,18 @@
   flex: 0 0 auto;
   width: calc(var(--tile-w) * 0.55);
   align-self: stretch;
+}
+
+/* El interruptor del sonido: discreto, pero encontrable. Un aviso que no se
+   puede callar es un defecto, no una función. */
+.bar__mute {
+  padding: 0.3rem;
+  min-height: 0;
+  color: var(--chalk-dim);
+}
+
+.bar__mute[aria-pressed="true"] {
+  color: var(--lamp);
 }
 
 /* --- Aviso de jugada rechazada ------------------------------------------ */
