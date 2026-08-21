@@ -34,6 +34,14 @@ export function Felt({
   movedBy,
   opening,
 }: FeltProps) {
+  /**
+   * Se mide el hueco de las filas, no el tapete entero.
+   *
+   * Dentro del tapete hay más cosas: el aviso de cuánto te falta para abrir
+   * ocupa dos o tres líneas, y midiendo el tapete el cálculo creía tener ese
+   * alto disponible. Resultado: quien aún no había abierto veía la mesa
+   * cortada justo cuando más fichas hay que mirar.
+   */
   const [ref, box] = useMeasuredBox<HTMLDivElement>();
 
   // Las fichas encogen conforme se llena la mesa para que nunca haga falta
@@ -51,7 +59,6 @@ export function Felt({
   return (
     <div
       className="felt"
-      ref={ref}
       style={tileSizeStyle(tile)}
       // Todo el tapete acepta fichas: soltar en el hueco vacío empieza una
       // combinación nueva, que es lo que uno espera al ver tanto sitio libre.
@@ -81,7 +88,7 @@ export function Felt({
         </p>
       ) : null}
 
-      <div className="felt__sets">
+      <div className="felt__sets" ref={ref}>
         {board.map((set, setIndex) => (
           <Tray
             key={keyOf(set, setIndex)}

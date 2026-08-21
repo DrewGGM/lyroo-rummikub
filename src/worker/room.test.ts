@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { ClientMessage, ServerMessage } from "../protocol";
 import { isRoomCode } from "../protocol";
 import { sortRack } from "../engine/order";
+import { readSet } from "../engine/sets";
 import { DEFAULT_RULES } from "../engine/rules";
 
 const ORIGIN = "http://mesa.test";
@@ -382,21 +383,30 @@ describe("partida", () => {
     const { seats, views } = await dealtTable(["Ana", "Beto"]);
     const rack = views[0]!.rack as string[];
 
+    // Tres fichas que de verdad no valgan. Buscarlas en vez de coger las tres
+    // primeras: el atril llega ordenado con las jugadas por delante, así que
+    // las tres primeras suelen ser legales y el test no probaría nada.
+    let ilegal: string[] | null = null;
+    for (let a = 0; a < rack.length && !ilegal; a++) {
+      for (let b = a + 1; b < rack.length && !ilegal; b++) {
+        for (let c = b + 1; c < rack.length && !ilegal; c++) {
+          const trio = [rack[a]!, rack[b]!, rack[c]!];
+          if (readSet(trio).length === 0) ilegal = trio;
+        }
+      }
+    }
+    expect(ilegal, "ninguna mano de catorce da un trío ilegal").not.toBeNull();
+
     seats[0]!.client.send({
       type: "commit",
-      board: [rack.slice(0, 3)],
-      rack: rack.slice(3),
+      board: [ilegal!],
+      rack: rack.filter((id) => !ilegal!.includes(id)),
     });
-    const answer = await Promise.race([
-      seats[0]!.client.until("rejected"),
-      seats[0]!.client.until("state", (m) => m.view.board.length > 0),
-    ]);
-    // Con una mano al azar lo normal es que tres fichas cualesquiera no valgan.
-    if (answer.type === "rejected") {
-      expect(["INVALID_SET", "MELD_TOO_LOW"]).toContain(answer.code);
-    } else {
-      expect(answer.type).toBe("state");
-    }
+
+    const negativa = await seats[0]!.client.until("rejected");
+    expect(negativa.code).toBe("INVALID_SET");
+    // Y dice cuál de las combinaciones falla, para poder marcarla en pantalla.
+    expect(negativa.setIndexes).toEqual([0]);
   });
 
   it("roba, pasa turno y avisa a todos", async () => {

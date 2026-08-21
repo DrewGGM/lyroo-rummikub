@@ -255,6 +255,11 @@
   grid-area: felt;
   position: relative;
   min-width: 0;
+  /* En columna para que las filas ocupen exactamente lo que sobra: lo que haya
+     encima --el aviso de apertura, sobre todo-- les quita alto de verdad, y así
+     el cálculo del tamaño de ficha se entera. */
+  display: flex;
+  flex-direction: column;
   /* Las fichas encogen hasta que la mesa entera cabe, así que normalmente esto
      no hace falta. Pero si ni al tamaño mínimo entra —pantalla muy baja y
      partida muy avanzada—, es mejor poder desplazar que dejar media mesa
@@ -279,6 +284,11 @@
   flex-wrap: wrap;
   align-content: flex-start;
   gap: calc(var(--tile-w) * 0.26);
+  /* Se queda con el hueco que sobra, ni más ni menos. `min-height: 0` es lo
+     que impide que crezca con su contenido: si creciera, medirlo para decidir
+     el tamaño de las fichas sería morderse la cola. */
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .felt__hint {

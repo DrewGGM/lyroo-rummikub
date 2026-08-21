@@ -29,6 +29,8 @@ const JUGADORES = ["Ada", "Blas", "Ciro", "Dora"].slice(
 );
 /** Tope de turnos: una partida de verdad no llega ni de lejos. */
 const TURNOS_MAXIMOS = 400;
+/** El suelo de `fit.ts`: por debajo ya no puede encoger más. */
+const MINIMO_FICHA = 26;
 
 type Robot = {
   readonly nombre: string;
@@ -277,6 +279,7 @@ async function comprobarQueCabe(pagina: Page, contexto: string): Promise<void> {
       ancho: felt.scrollWidth,
       visibleAncho: felt.clientWidth,
       alcanzable: getComputedStyle(felt).overflowY !== "hidden",
+      ficha: caja?.width ?? 0,
       proporcion: caja && caja.width > 0 ? caja.height / caja.width : null,
     };
   });
@@ -290,13 +293,19 @@ async function comprobarQueCabe(pagina: Page, contexto: string): Promise<void> {
     medidas = (await mirar()) ?? medidas;
   }
 
-  // Que no quepa es tolerable si se puede desplazar; lo que no vale es que
-  // quede cortada y no haya forma de llegar a ella.
+  // Desplazar es el último recurso para una pantalla imposible, no el estado
+  // normal de la mesa: si con fichas por encima del mínimo no cabe, es que el
+  // cálculo del tamaño se ha dejado algo fuera.
   if (medidas.alto > medidas.visible + 1) {
     expect(
       medidas.alcanzable,
       `${contexto}: la mesa queda cortada y no se puede desplazar`,
     ).toBe(true);
+    expect(
+      medidas.ficha,
+      `${contexto}: la mesa no cabe (${medidas.alto} > ${medidas.visible}) ` +
+        `con fichas de ${medidas.ficha}px, por encima del mínimo`,
+    ).toBeLessThanOrEqual(MINIMO_FICHA + 0.5);
   }
   expect(
     medidas.ancho,
@@ -432,7 +441,15 @@ test.describe("robots jugando", () => {
         const trasMirar = Date.now();
         comprobarConservacion(mesa, mazo, `partida ${partida}, turno ${turnos}`);
         comprobarSinDuplicados(mesa, `partida ${partida}, turno ${turnos}`);
-        await comprobarQueCabe(deQuien.pagina, `partida ${partida}, turno ${turnos}`);
+        // Todas las pantallas, no solo la de quien juega: quien aún no ha
+        // abierto ve además el aviso de apertura dentro del tapete, y ese
+        // aviso ocupa alto que las fichas ya no tienen.
+        for (const mirón of robots) {
+          await comprobarQueCabe(
+            mirón.pagina,
+            `partida ${partida}, turno ${turnos}, pantalla de ${mirón.nombre}`,
+          );
+        }
 
         const jugada = decidir(mesa, 30);
         const trasDecidir = Date.now();

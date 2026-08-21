@@ -528,6 +528,39 @@ test("la ficha recién robada se ve marcada", async ({ browser }) => {
   expect(antes).not.toContain(cual);
 });
 
+test("el brillo de la robada se apaga solo", async ({ browser }) => {
+  const { jugando } = await sentarADos(browser);
+  await jugando.getByRole("button", { name: "Robar" }).click();
+  await expect(jugando.locator(".rack__ledge .tile--fresh")).toHaveCount(1);
+  // A los pocos segundos deja de avisar: ya sabes cuál es.
+  await expect(jugando.locator(".rack__ledge .tile--fresh")).toHaveCount(0, {
+    timeout: 8000,
+  });
+});
+
+test("ordenar deja las jugadas armadas y separadas al principio", async ({
+  browser,
+}) => {
+  const { jugando } = await sentarADos(browser);
+  for (const modo of ["Grupos", "Escaleras"]) {
+    await jugando.getByRole("button", { name: modo }).click();
+    await jugando.waitForTimeout(250);
+
+    const fichas = await jugando.locator(".rack__ledge .tile").evaluateAll((n) =>
+      n.map((e) => e.getAttribute("data-tile")!),
+    );
+    const huecos = await jugando.locator(".rack__gap").count();
+    if (huecos === 0) continue; // esta mano no traía ninguna jugada
+
+    // El primer hueco marca dónde acaba lo jugable, y lo de delante vale.
+    const corte = await jugando.locator(".rack__ledge > *").evaluateAll((n) =>
+      n.findIndex((e) => e.classList.contains("rack__gap")),
+    );
+    expect(corte).toBeGreaterThanOrEqual(3);
+    expect(readSet(fichas.slice(0, corte) as TileId[]).length).toBeGreaterThan(0);
+  }
+});
+
 /** Deja una mesa de dos empezada y dice a quién le toca. */
 async function sentarADos(browser: Browser) {
   const uno = await (await browser.newContext({ viewport: HORIZONTAL })).newPage();

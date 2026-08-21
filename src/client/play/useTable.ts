@@ -52,6 +52,9 @@ export type Table = {
   sort(mode: SortMode): void;
 };
 
+/** Lo que dura encendida la ficha recién robada. */
+const DRAWN_GLOW_MS = 4000;
+
 export function useTable(
   serverBoard: Board,
   serverRack: readonly TileId[],
@@ -101,16 +104,22 @@ export function useTable(
    * Qué ficha acaba de llegar al atril.
    *
    * Robas, la ficha aparece entre otras trece y hay que buscarla. Se marca la
-   * que ha aparecido desde la última vez, y se queda marcada hasta que llegue
-   * otra o la juegues. En el reparto inicial llegan catorce de golpe y no se
+   * que ha aparecido desde la última vez, y la marca se apaga sola a los pocos
+   * segundos: pasado ese rato ya sabes cuál es, y una luz que no se apaga deja
+   * de avisar de nada. En el reparto inicial llegan catorce de golpe y no se
    * marca ninguna: señalarlas todas sería no señalar nada.
    */
   useEffect(() => {
     const antes = new Set(atrilDeAntes.current);
     const llegadas = serverRack.filter((id) => !antes.has(id));
     atrilDeAntes.current = serverRack;
-    if (llegadas.length === 1) setDrawn(llegadas[0]!);
-    else if (llegadas.length > 1) setDrawn(null);
+    if (llegadas.length !== 1) {
+      if (llegadas.length > 1) setDrawn(null);
+      return;
+    }
+    setDrawn(llegadas[0]!);
+    const apagar = setTimeout(() => setDrawn(null), DRAWN_GLOW_MS);
+    return () => clearTimeout(apagar);
   }, [serverRack]);
 
   // Todo cambio del atril se apunta, venga de arrastrar o de los botones de

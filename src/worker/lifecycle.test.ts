@@ -172,12 +172,14 @@ describe("reloj del turno", () => {
         .exec<{ state: string }>("SELECT state FROM room WHERE id = 1")
         .one();
       const game = JSON.parse(row.state) as GameState;
-      game.players[0]!.rack = [
-        "r11_0",
-        "r12_0",
-        "r13_0",
-        ...game.players[0]!.rack.slice(3),
-      ];
+      // Se quitan del resto por si ya venían repartidas: dos copias de la
+      // misma ficha en el atril rompen la conservación y el servidor rechaza
+      // la jugada por un motivo que no tiene nada que ver con lo que se prueba.
+      const jugada = ["r11_0", "r12_0", "r13_0"];
+      const resto = game.players[0]!.rack.filter((id) => !jugada.includes(id));
+      // Catorce exactas: quitar las repetidas encogía la mano y luego no
+      // cuadraban las cuentas de fichas por un motivo ajeno a la prueba.
+      game.players[0]!.rack = [...jugada, ...resto.slice(0, 11)];
       state.storage.sql.exec(
         "UPDATE room SET state = ? WHERE id = 1",
         JSON.stringify(game),
