@@ -67,15 +67,32 @@ export const Tile = memo(function Tile({
   );
 });
 
-/** El comodín del Rummikub es una cara sonriente impresa en la pasta. */
+/**
+ * El comodín: una cara guiñando con la boca abierta.
+ *
+ * Se probó con gorro de bufón, dos puntas y cascabeles, y a tamaño de juego
+ * --dieciséis píxeles con la mesa llena-- las dos puntas se leían como cuernos.
+ * A ese tamaño no cabe un sombrero: cabe una cara. El carácter se lo da el
+ * guiño, que se distingue aunque el resto sea un borrón, y la boca abierta, que
+ * la separa del emoticono de siempre.
+ *
+ * Dibujada a trazo y con `currentColor`, como los números: así se ve impresa en
+ * la pasta y no pegada encima.
+ */
 function JokerFace() {
   return (
     <svg className="tile__joker" viewBox="0 0 24 24" aria-hidden="true">
       <g className="joker-face">
-        <circle cx="12" cy="12" r="9.5" />
-        <circle className="joker-face__eye" cx="8.8" cy="9.6" r="1.4" />
-        <circle className="joker-face__eye" cx="15.2" cy="9.6" r="1.4" />
-        <path d="M7.6 14.2c1.2 2 2.6 3 4.4 3s3.2-1 4.4-3" />
+        {/* La cara, grande y de trazo grueso: es lo único que sobrevive a
+            los dieciséis píxeles que mide esto con la mesa llena. */}
+        <circle cx="12" cy="12" r="9.2" />
+        {/* Un ojo abierto y el otro guiñando. Es lo que le da carácter sin
+            añadir una sola línea más: el guiño se lee incluso borroso. */}
+        <circle className="joker-face__eye" cx="8.6" cy="9.9" r="1.5" />
+        <path d="M13.3 9.9c.5-.9 1.3-1.4 2.3-1.4" />
+        {/* La sonrisa, ancha y abierta, con la lengua asomando. */}
+        <path d="M7.1 13.6c1.3 2.6 2.9 3.9 4.9 3.9s3.6-1.3 4.9-3.9" />
+        <path d="M7.1 13.6h9.8" />
       </g>
     </svg>
   );
